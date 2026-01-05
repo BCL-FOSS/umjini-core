@@ -27,8 +27,9 @@ services:
       - SMTP_SENDER=${SMTP_SENDER}
       - SMTP_SENDER_APP_PASSWORD=${SMTP_SENDER_APP_PASSWORD}
       - SMTP_RECEIVER=${SMTP_RECEIVER}
-      - ONETIMESECRET_USER=${OTS_USER}
-      - ONETIMESECRET_KEY=${OTS_KEY}
+      - OTS_USER=${OTS_USER}
+      - OTS_KEY=${OTS_KEY}
+      - OTS_TTL=${OTS_TTL}
       - REGION=us  # Default region, can be "us" or "eu"
     volumes:
       - socket_data:/home/quart/instance/apps
@@ -59,8 +60,9 @@ services:
       - SMTP_SENDER=${SMTP_SENDER}
       - SMTP_SENDER_APP_PASSWORD=${SMTP_SENDER_APP_PASSWORD}
       - SMTP_RECEIVER=${SMTP_RECEIVER}
-      - ONETIMESECRET_USER=${OTS_USER}
-      - ONETIMESECRET_KEY=${OTS_KEY}
+      - OTS_USER=${OTS_USER}
+      - OTS_KEY=${OTS_KEY}
+      - OTS_TTL=${OTS_TTL}
       - REGION=us  # Default region, can be "us" or "eu"
     volumes:
       - agent_data:/home/quart/instance/apps

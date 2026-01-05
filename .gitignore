@@ -67,3 +67,4 @@ socketapp/mcp/ollamaproxy/updated_app.py
 socketapp/mcp/ollamaproxy/old_files/*
 logs.txt
 agentapp/templates/app/settings-old.html
+agentapp/templates/index/index_old.html

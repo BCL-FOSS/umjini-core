@@ -899,7 +899,7 @@ async def resetapi():
                     }
         
         if await cl_auth_db.upload_db_data(id=usr_data_dict['db_id'], data=updated_api_data) is not None:
-            link =cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
+            link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
 
             await email_handler.send_email_alert(
                 recipient=os.environ.get('SMTP_RECEIVER'),

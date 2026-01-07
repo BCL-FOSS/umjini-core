@@ -512,14 +512,13 @@ async def ws():
 @app.route('/init', methods=['GET'])
 async def init():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
-    if not api_key:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not api_key or not usr:
+        return jsonify(error="Missing required request data"), 400
              
     await cl_auth_db.connect_db()
+    await cl_data_db.connect_db()
 
     if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
         usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
@@ -527,12 +526,20 @@ async def init():
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
 
-        if bcrypt.verify(api_key,usr_data_dict.get(api_name)) is False:
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
+        
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
+ 
+        if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
             return Unauthorized()
     
-        api_jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
-        api_rand = usr_data_dict.get(f'{api_name}_rand')
-        api_id = usr_data_dict.get(f'{api_name}_id')
+        api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        api_rand = api_data_dict.get(f'{api_name}_rand')
+        api_id = api_data_dict.get(f'{api_name}_id')
        
         # Generate JWT to authenticate probe sessions with monitor backend
         jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, expire=1)
@@ -557,14 +564,12 @@ async def init():
 @app.route("/enroll", methods=['POST'])
 async def enroll():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
-    if not api_key:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
-    
     site = request.args.get('site')
+
+    if not api_key or not usr:
+        return jsonify(error="Missing required request data"), 400
+    
     if not site:
         site = 'default'
 
@@ -579,12 +584,20 @@ async def enroll():
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
 
-        jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
+        
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
+
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
         logger.info(jwt_key)
         decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
         logger.info(decoded_token)
 
-        if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand') and bcrypt.verify(api_key,usr_data_dict.get(api_name)) is False:
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') and bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
             return Unauthorized()
             
         # Adopt new probe
@@ -609,12 +622,10 @@ async def enroll():
 @app.route('/delete', methods=['POST'])
 async def delete():
     jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 401
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not jwt_token or not usr:
+        return jsonify(error="Missing required request data"), 400
         
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
@@ -627,12 +638,20 @@ async def delete():
             usr_data_dict = next(iter(usr_data.values()))
             logger.info(usr_data_dict)
 
-            jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+            if api_data is None:
+                return jsonify(error="Resource not found"), 404
+            
+            api_data_dict = next(iter(api_data.values()))
+            logger.info(api_data_dict)
+
+            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
             logger.info(jwt_key)
             decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
             logger.info(decoded_token)
 
-            if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
                 return Unauthorized()
             
             data = await request.get_json()
@@ -661,14 +680,13 @@ async def delete():
 @app.route('/flowrun', methods=['POST'])
 async def flowrun():
     jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not jwt_token or not usr:
+        return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
+    await cl_data_db.connect_db() 
 
     try:
 
@@ -678,12 +696,20 @@ async def flowrun():
             usr_data_dict = next(iter(usr_data.values()))
             logger.info(usr_data_dict)
 
-            jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+            if api_data is None:
+                return jsonify(error="Resource not found"), 404
+            
+            api_data_dict = next(iter(api_data.values()))
+            logger.info(api_data_dict)
+
+            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
             logger.info(jwt_key)
             decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
             logger.info(decoded_token)
 
-            if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
                 return Unauthorized()
 
         data = await request.get_json()
@@ -711,14 +737,13 @@ async def flowrun():
 @app.route('/flowdelete', methods=['POST'])
 async def flowdelete():
     jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not jwt_token or not usr:
+        return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
+    await cl_data_db.connect_db()
 
     try:
 
@@ -728,12 +753,20 @@ async def flowdelete():
             usr_data_dict = next(iter(usr_data.values()))
             logger.info(usr_data_dict)
 
-            jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+            if api_data is None:
+                return jsonify(error="Resource not found"), 404
+            
+            api_data_dict = next(iter(api_data.values()))
+            logger.info(api_data_dict)
+
+            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
             logger.info(jwt_key)
             decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
             logger.info(decoded_token)
 
-            if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
                 return Unauthorized()
             
         data = await request.get_json()
@@ -761,14 +794,13 @@ async def flowdelete():
 @app.route('/flowsave', methods=['POST'])
 async def flowsave():
     jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not jwt_token or not usr:
+        return jsonify(error="Missing required request data"), 400
 
     await cl_auth_db.connect_db()
+    await cl_data_db.connect_db()
 
     try:
 
@@ -778,12 +810,20 @@ async def flowsave():
             usr_data_dict = next(iter(usr_data.values()))
             logger.info(usr_data_dict)
 
-            jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+            if api_data is None:
+                return jsonify(error="Resource not found"), 404
+            
+            api_data_dict = next(iter(api_data.values()))
+            logger.info(api_data_dict)
+
+            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
             logger.info(jwt_key)
             decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
             logger.info(decoded_token)
 
-            if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
                 return Unauthorized()
 
         data = await request.get_json()
@@ -811,14 +851,13 @@ async def flowsave():
 @app.route('/flowload', methods=['POST'])
 async def flowload():
     jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 400
-    
     usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
+
+    if not jwt_token or not usr:
+        return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
+    await cl_data_db.connect_db()
 
     try:
 
@@ -828,12 +867,20 @@ async def flowload():
             usr_data_dict = next(iter(usr_data.values()))
             logger.info(usr_data_dict)
 
-            jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+            if api_data is None:
+                return jsonify(error="Resource not found"), 404
+            
+            api_data_dict = next(iter(api_data.values()))
+            logger.info(api_data_dict)
+
+            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
             logger.info(jwt_key)
             decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
             logger.info(decoded_token)
 
-            if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
                 return Unauthorized()
             
         data = await request.get_json()
@@ -860,45 +907,45 @@ async def flowload():
         
 @app.route('/resetapi', methods=['POST'])
 async def resetapi():
-    jwt_token = request.cookies.get("api_access_token")
-    if not jwt_token:
-        return jsonify(error="Missing API Key"), 400
-    
-    usr = request.args.get('usr')
-    if not usr:
-        return jsonify(error="Missing username"), 400
-    
-    await cl_auth_db.connect_db()
+    jwt_token = request.cookies.get("access_token")
+    sess_id = request.args.get('sess_id')
 
-    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+    if not jwt_token or not sess_id:
+        return jsonify(error="Missing required request data"), 400
+    
+    await cl_sess_db.connect_db()
+    await cl_data_db.connect_db()
+
+    if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
         return Unauthorized()
     
     try:
-    
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
+        usr_sess_data = await cl_sess_db.get_all_data(match=f'*{sess_id}*')
+        logger.info(usr_sess_data)
+        usr_data_dict = next(iter(usr_sess_data.values()))
         logger.info(usr_data_dict)
 
-        jwt_key = usr_data_dict.get(f'{api_name}_jwt_secret')
+        jwt_key = usr_data_dict.get(f'usr_jwt_secret')
         logger.info(jwt_key)
         decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
         logger.info(decoded_token)
 
-        if decoded_token.get('rand') != usr_data_dict.get(f'{api_name}_rand'):
+        if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
             return Unauthorized()
-
-        api_id = util_obj.key_gen(size=10)
-
-        new_api_key = util_obj.generate_api_key()
-
-        updated_api_data = {api_name: bcrypt.hash(new_api_key),
-                        f"{api_name}_id": api_id,
-                        f"{api_name}_rand": secrets.token_urlsafe(500),
-                        f"{api_name}_jwt_secret": secrets.token_urlsafe(500)
-                    }
         
-        if await cl_auth_db.upload_db_data(id=usr_data_dict['db_id'], data=updated_api_data) is not None:
+        if await cl_data_db.del_obj(key=f"api_dta:{usr_data_dict['db_id']}") is not None:
+
+            api_id = util_obj.key_gen(size=10)
+
+            new_api_key = util_obj.generate_api_key()
+
+            updated_api_data = {api_name: bcrypt.hash(new_api_key),
+                            f"{api_name}_id": api_id,
+                            f"{api_name}_rand": secrets.token_urlsafe(500),
+                            f"{api_name}_jwt_secret": secrets.token_urlsafe(500)
+                        }
+        
+        if await cl_data_db.upload_db_data(id=f"api_dta:{usr_data_dict['db_id']}", data=updated_api_data) is not None:
             link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
 
             await email_handler.send_email_alert(

@@ -462,7 +462,7 @@ async def settings(cmp_id, obsc):
                     f"{api_name}_jwt_secret": secrets.token_urlsafe(500)
                 }
 
-        if await cl_auth_db.upload_db_data(id=f"{cl_sess_data_dict.get('db_id')}", data=updt_obj) is None:
+        if await cl_data_db.upload_db_data(id=f"api_dta:{cl_sess_data_dict.get('db_id')}", data=updt_obj) is None:
             await flash(message=f"API key gen failed...")
             return redirect(url_for('settings', cmp_id=cmp_id, obsc=obsc))
         

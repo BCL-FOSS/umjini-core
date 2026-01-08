@@ -30,7 +30,7 @@ services:
       - OTS_USER=${OTS_USER}
       - OTS_KEY=${OTS_KEY}
       - OTS_TTL=${OTS_TTL}
-      - REGION=us  # Default region, can be "us" or "eu"
+      - REGION=eu  # Default region, can be "us" or "eu"
     volumes:
       - socket_data:/home/quart/instance/apps
     
@@ -63,7 +63,7 @@ services:
       - OTS_USER=${OTS_USER}
       - OTS_KEY=${OTS_KEY}
       - OTS_TTL=${OTS_TTL}
-      - REGION=us  # Default region, can be "us" or "eu"
+      - REGION=eu  # Default region, can be "us" or "eu"
     volumes:
       - agent_data:/home/quart/instance/apps
 

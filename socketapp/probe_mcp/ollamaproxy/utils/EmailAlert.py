@@ -45,21 +45,24 @@ class EmailAlert:
             else:
                 start_tls = True
 
-        smtp = aiosmtplib.SMTP(
-            hostname=self.smtp_host,
-            port=self.smtp_port,
-            timeout=self.timeout,
-            use_tls=use_tls,
-            start_tls=start_tls
-        )
-
         try:
 
             logger.debug(f"Sending email from {self.sender} to {recipient}")
-            result = await smtp.send_message(msg, sender=self.sender, recipients=[recipient], username=self.username, password=self.password)
+            result = await aiosmtplib.send(
+                msg,
+                hostname=self.smtp_host,
+                port=self.smtp_port,
+                timeout=self.timeout,
+                use_tls=use_tls,
+                start_tls=start_tls,
+                sender=self.sender, 
+                recipients=[recipient], 
+                username=self.username, 
+                password=self.password
+            )
+        
             logger.info(f"Email send result: {result}")
 
-            await smtp.quit()
             return result
 
         except SMTPException as smtp_e:

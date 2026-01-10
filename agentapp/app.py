@@ -47,9 +47,65 @@ ip_ban_db = RedisDB(hostname=os.environ.get('IP_BAN_DB'),
                     port=os.environ.get('IP_BAN_DB_PORT'))
 mntr_url=os.environ.get('SERVER_NAME')
 api_name = 'umj-api-wflw'
-max_auth_attempts=3
+max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
 auth_attempts={}
 reg_attempts={}
+
+async def ip_blocker_reg(auto_ban: bool = False):
+    if auto_ban is True:
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            reg_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
+        
+    if request.access_route[-1] not in reg_attempts:
+        reg_attempts[request.access_route[-1]] = 1
+
+    if reg_attempts[request.access_route[-1]] != max_auth_attempts:
+        reg_attempts[request.access_route[-1]] += 1
+        await flash(message=f'Try again...', category='danger')
+        return redirect(url_for('login'))
+    else:
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            reg_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
+
+async def ip_blocker_login(auto_ban: bool = False):
+    if auto_ban is True:
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
+
+    if request.access_route[-1] not in auth_attempts:
+        auth_attempts[request.access_route[-1]] = 1
+
+    if auth_attempts[request.access_route[-1]] != max_auth_attempts:
+        auth_attempts[request.access_route[-1]] += 1
+        await flash(message=f'Try again...', category='danger')
+        return redirect(url_for('login'))
+    else:
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
 
 def admin_login_required(func):
     @wraps(func)
@@ -207,22 +263,9 @@ async def login():
                             return resp
 
                 else:
-                    if request.access_route[-1] not in auth_attempts:
-                        auth_attempts[request.access_route[-1]] = 1
-
-                    if auth_attempts[request.access_route[-1]] != max_auth_attempts:
-                        auth_attempts[request.access_route[-1]] += 1
-                        await flash(message=f'Try again...', category='danger')
-                        return redirect(url_for('login'))
-                    else:
-                        await ip_ban_db.connect_db()
-                        now = datetime.now(tz=timezone.utc)
-                        ban_data = {'ip': request.access_route[-1],
-                                    'banned_at': now.isoformat()}
-                        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) is not None:
-                            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
-                            auth_attempts.pop(request.access_route[-1], None)
-                            abort(403) 
+                    await ip_blocker_login()
+                    return redirect(url_for('login'))
+                    
             else:
                 await flash(message='Create an account...', category='danger')
                 return redirect(url_for('register'))
@@ -249,23 +292,9 @@ async def register():
             await cl_auth_db.connect_db()
 
             if await cl_auth_db.get_all_data(match=f"reg_key:{username}:*", cnfrm=True) is False or reg_key is None:
-                if request.access_route[-1] not in reg_attempts:
-                        reg_attempts[request.access_route[-1]] = 1
-
-                if reg_attempts[request.access_route[-1]] != max_auth_attempts:
-                    reg_attempts[request.access_route[-1]] += 1
-                    await flash(message=f'Try again...', category='danger')
-                    return redirect(url_for('login'))
-                else:
-                    await ip_ban_db.connect_db()
-                    now = datetime.now(tz=timezone.utc)
-                    ban_data = {'ip': request.access_route[-1],
-                                    'banned_at': now.isoformat()}
-                    if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) is not None:
-                        logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
-                        reg_attempts.pop(request.access_route[-1], None)
-                        abort(403) 
-
+                await ip_blocker_reg()
+                return Unauthorized()
+                
             reg_key_data = await cl_auth_db.get_all_data(match=f"reg_key:{username}:*")
 
             reg_key_sub_dict = next(iter(reg_key_data.values()))
@@ -273,22 +302,8 @@ async def register():
             logger.info(reg_key_sub_dict)
 
             if bcrypt.verify(secret=reg_key, hash=reg_key_sub_dict.get("reg_key")) is False:
-                if request.access_route[-1] not in reg_attempts:
-                    reg_attempts[request.access_route[-1]] = 1
-
-                if reg_attempts[request.access_route[-1]] != max_auth_attempts:
-                    reg_attempts[request.access_route[-1]] += 1
-                    await flash(message=f'Try again...', category='danger')
-                    return redirect(url_for('login'))
-                else:
-                    await ip_ban_db.connect_db()
-                    now = datetime.now(tz=timezone.utc)
-                    ban_data = {'ip': request.access_route[-1],
-                                    'banned_at': now.isoformat()}
-                    if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) is not None:
-                        logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
-                        reg_attempts.pop(request.access_route[-1], None)
-                        abort(403) 
+                await ip_blocker_reg()
+                return Unauthorized()
 
             password = form.password.data
             email = form.email.data
@@ -330,7 +345,7 @@ async def register():
                     await flash(message=f'Registration successful for {username}!', category='success')
                     return redirect(url_for('login'))
                 else:
-                    await flash(message=f'Registration falied for {username}. Try again.', category='danger')
+                    await flash(message=f'Registration failed for {username}. Try again.', category='danger')
                     return redirect(url_for('register'))
             else:
                 await flash(message=f'Account for {username} already exist!', category='danger')
@@ -346,24 +361,21 @@ async def register():
 @user_login_required
 async def logout(auth_id):
     try:
-        # Remove user session profile from sess redis db/automatically invalidates active JWT tokens
-        #auth_id = request.args.get('auth_id')
         cur_usr_id = auth_id
 
         await cl_sess_db.connect_db()
         if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
+            await ip_blocker_reg(auto_ban=True)
             return Unauthorized()
         
         result = await cl_sess_db.del_obj(key=cur_usr_id)
 
         logger.info(result)
 
-        # Clear JWT cookie
         resp = redirect(url_for("login"))
         resp.delete_cookie("access_token")
         resp.delete_cookie("api_access_token")
 
-        # quart-auth sign out
         client_auth.logout_user()
 
         await flash(message="You have been logged out.", category="info")
@@ -374,7 +386,6 @@ async def logout(auth_id):
             "status": "error",
             "message": str(e)
         }), exc_info=True)
-        # Still clear cookie as fail-safe and redirect to login
         resp = redirect(url_for("login"))
         resp.delete_cookie("access_token")
         resp.delete_cookie("api_access_token")

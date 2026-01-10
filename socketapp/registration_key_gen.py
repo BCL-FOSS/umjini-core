@@ -38,6 +38,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(generate_registration_key(args.user))
-
-
-

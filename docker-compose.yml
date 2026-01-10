@@ -20,17 +20,11 @@ services:
       - OLLAMA_PROXY_URL=http://ollama-proxy:8000/v1
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
       - API_TOKEN_NAME=${API_TOKEN_NAME}
-      - SDN_COUNT=${sdn_count}
-      - ALERT_COUNT=${alert_count}
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_SENDER=${SMTP_SENDER}
-      - SMTP_SENDER_APP_PASSWORD=${SMTP_SENDER_APP_PASSWORD}
-      - SMTP_RECEIVER=${SMTP_RECEIVER}
       - OTS_USER=${OTS_USER}
       - OTS_KEY=${OTS_KEY}
       - OTS_TTL=${OTS_TTL}
-      - REGION=eu  # Default region, can be "us" or "eu"
+      - REGION=${OTS_REGION} 
+      - MAX_AUTH_ATTEMPTS=${MAX_AUTH_ATTEMPTS}
     volumes:
       - socket_data:/home/quart/instance/apps
     
@@ -53,17 +47,11 @@ services:
       - OLLAMA_PROXY_URL=http://ollama-proxy:8000/v1
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
       - API_TOKEN_NAME=${API_TOKEN_NAME}
-      - SDN_COUNT=${sdn_count}
-      - ALERT_COUNT=${alert_count}
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_SENDER=${SMTP_SENDER}
-      - SMTP_SENDER_APP_PASSWORD=${SMTP_SENDER_APP_PASSWORD}
-      - SMTP_RECEIVER=${SMTP_RECEIVER}
       - OTS_USER=${OTS_USER}
       - OTS_KEY=${OTS_KEY}
       - OTS_TTL=${OTS_TTL}
-      - REGION=eu  # Default region, can be "us" or "eu"
+      - REGION=${OTS_REGION}
+      - MAX_AUTH_ATTEMPTS=${MAX_AUTH_ATTEMPTS}
     volumes:
       - agent_data:/home/quart/instance/apps
 

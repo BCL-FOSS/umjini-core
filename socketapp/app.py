@@ -52,6 +52,8 @@ mntr_url=os.environ.get('SERVER_NAME')
 REQUIRED_OUT_OF_SCOPE_MSG = "Please provide a question or request related to network administration or the available MCP tools."
 email_sender_handler = EmailSenderHandler(brevo_api_key=os.environ.get('BREVO_API_KEY'))
 cli = OneTimeSecretCli(os.environ.get('OTS_USER'), os.environ.get('OTS_KEY'), os.environ.get('REGION'))
+auth_attempts={}
+max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
 
 # Helper functions to quantize datetimes to 5-minute increments
 def round_down_to_5min(dt: datetime) -> datetime:
@@ -76,6 +78,35 @@ def round_up_to_5min(dt: datetime) -> datetime:
     base = dt.replace(second=0, microsecond=0)
     res = base + timedelta(minutes=add_minutes)
     return res.replace(second=0, microsecond=0)
+
+async def ip_blocker(auto_ban: bool = False):
+    if auto_ban is True:
+        logger.info(f"Auto banning IP: {request.access_route[-1]}")
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
+
+    if request.access_route[-1] not in auth_attempts:
+        auth_attempts[request.access_route[-1]] = 1
+
+    if auth_attempts[request.access_route[-1]] != max_auth_attempts:
+        auth_attempts[request.access_route[-1]] += 1
+        await flash(message=f'Try again...', category='danger')
+        return jsonify(error="Unauthorized"), 401
+    else:
+        await ip_ban_db.connect_db()
+        now = datetime.now(tz=timezone.utc)
+        ban_data = {'ip': request.access_route[-1],
+                    'banned_at': now.isoformat()}
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(request.access_route[-1], None)
+            #abort(403) 
 
 async def _receive() -> None:
     while True:
@@ -341,6 +372,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
 
                 await cl_sess_db.connect_db()
                 if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
+                    await ip_blocker(auto_ban=True)
                     return Unauthorized()
                 
                 result = await cl_sess_db.del_obj(key=cur_usr_id)
@@ -447,6 +479,11 @@ async def ws():
                     decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
                     logger.info(decoded_token)
 
+                    if decoded_token.get('rand') != sub_dict.get('usr_rand'):
+                        await ip_blocker(auto_ban=True)
+                        await websocket.accept()
+                        await websocket.close(1010, 'websocket authentication failed')
+                        
                     if decoded_token.get('rand') == sub_dict.get('usr_rand'):
                         logger.info('websocket authentication successful')
 
@@ -455,29 +492,24 @@ async def ws():
                         now = datetime.now(tz=timezone.utc)
                         auth_ping_counter[id] = {
                             "sess_id": id,
-                            "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), #round_down_to_5min(now) + timedelta(minutes=5) # First expiry 5 minutes from now, quantized down
+                            "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
                         }
                         logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
 
-                        # Start the receive task
                         recv_task = asyncio.ensure_future(_receive())
 
-                        # Start a per-connection session watchdog that will close the websocket when the expiry elapses
                         monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
-                        #task = asyncio.ensure_future(_receive())
                         async for message in broker.subscribe():
                             await websocket.send(message)
-                    else:
-                        await websocket.accept()
-                        await websocket.close(1010, 'websocket authentication failed')
             else:
                 await websocket.accept()
                 await websocket.close(1010, "Stream rate limit exceeded...")
+
         else:
+           await ip_blocker(auto_ban=True)
            await websocket.accept()
            await websocket.close(1010, "Missing required args...")
-
     except Exception as e:
         if recv_task and monitor_task:
             recv_task.cancel()
@@ -534,46 +566,47 @@ async def init():
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
 
-    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
-        logger.info(usr_data_dict)
-
-        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-        if api_data is None:
-            return jsonify(error="Resource not found"), 404
-        
-        api_data_dict = next(iter(api_data.values()))
-        logger.info(api_data_dict)
- 
-        if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
-            return Unauthorized()
+    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        await ip_blocker()
+        return Unauthorized()
     
-        api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-        api_rand = api_data_dict.get(f'{api_name}_rand')
-        api_id = api_data_dict.get(f'{api_name}_id')
-       
-        # Generate JWT to authenticate probe sessions with monitor backend
-        jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, expire=1)
-        
-        # Build response with cookie
-        response = Response(response='Probe Token Success', status=200)
-        
-        response.set_cookie(
-                key='access_token',
-                value=jwt_token,
-                httponly=True,
-                secure=True,
-                samesite="Strict",
-                max_age=3600  # 1 hour, adjust as needed
-            )
-        
-        return response
-            
-    else:
+    usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+    logger.info(usr_data)
+    usr_data_dict = next(iter(usr_data.values()))
+    logger.info(usr_data_dict)
+
+    api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+    if api_data is None:
         return jsonify(error="Resource not found"), 404
+        
+    api_data_dict = next(iter(api_data.values()))
+    logger.info(api_data_dict)
+ 
+    if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
+        await ip_blocker()
+        return Unauthorized()
+    
+    api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+    api_rand = api_data_dict.get(f'{api_name}_rand')
+    api_id = api_data_dict.get(f'{api_name}_id')
+       
+    # Generate JWT to authenticate probe sessions with monitor backend
+    jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, expire=1)
+        
+    # Build response with cookie
+    response = Response(response='Probe Token Success', status=200)
+        
+    response.set_cookie(
+        key='access_token',
+        value=jwt_token,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        max_age=3600  # 1 hour, adjust as needed
+    )
+        
+    return response
     
 @app.route("/enroll", methods=['POST'])
 async def enroll():
@@ -592,46 +625,43 @@ async def enroll():
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
 
-    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
-        logger.info(usr_data_dict)
+    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        await ip_blocker()
+        return Unauthorized()
+    
+    usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+    logger.info(usr_data)
+    usr_data_dict = next(iter(usr_data.values()))
+    logger.info(usr_data_dict)
 
-        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+    api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-        if api_data is None:
-            return jsonify(error="Resource not found"), 404
-        
-        api_data_dict = next(iter(api_data.values()))
-        logger.info(api_data_dict)
-
-        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-        logger.info(jwt_key)
-        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-        logger.info(decoded_token)
-
-        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') and bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
-            return Unauthorized()
-            
-        # Adopt new probe
-        adopted_probe_data = await request.get_json()
-        logger.info(adopted_probe_data)
-        prb_db_id = f"prb:{site}:{adopted_probe_data['prb_id']}"
-        adopted_probe_data['db_id'] = prb_db_id
-        logger.info(adopted_probe_data)
-
-        new_prb = await cl_data_db.upload_db_data(id=prb_db_id, data=adopted_probe_data)
-        logger.info(new_prb)
-
-        if new_prb is not None:
-            response = Response(response='probe adopted', status=200)
-            return response
-        else:
-            response = Response(response='probe adoption failed', status=400)
-            return response
-    else:
+    if api_data is None:
         return jsonify(error="Resource not found"), 404
+        
+    api_data_dict = next(iter(api_data.values()))
+    logger.info(api_data_dict)
+
+    jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+    logger.info(jwt_key)
+    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+    logger.info(decoded_token)
+
+    if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') or bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
+        await ip_blocker()
+        return Unauthorized()
+            
+    # Adopt new probe
+    adopted_probe_data = await request.get_json()
+    logger.info(adopted_probe_data)
+    prb_db_id = f"prb:{site}:{adopted_probe_data['prb_id']}"
+    adopted_probe_data['db_id'] = prb_db_id
+    logger.info(adopted_probe_data)
+
+    if await cl_data_db.upload_db_data(id=prb_db_id, data=adopted_probe_data) > 0:
+        return jsonify({'status':'probe adopted'})
+    else:
+        return jsonify({'status':'probe adoption failed'}), 400
     
 @app.route('/delete', methods=['POST'])
 async def delete():
@@ -645,45 +675,45 @@ async def delete():
     await cl_data_db.connect_db()
 
     try:
+        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-            usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-            logger.info(usr_data)
-            usr_data_dict = next(iter(usr_data.values()))
-            logger.info(usr_data_dict)
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-            if api_data is None:
-                return jsonify(error="Resource not found"), 404
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
             
-            api_data_dict = next(iter(api_data.values()))
-            logger.info(api_data_dict)
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
 
-            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-            logger.info(jwt_key)
-            decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-            logger.info(decoded_token)
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
 
-            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-                return Unauthorized()
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
             
-            data = await request.get_json()
-            logger.info(data)
-            id = data.get('id')
-            logger.info(id)
+        data = await request.get_json()
+        logger.info(data)
+        id = data.get('id')
+        logger.info(id)
 
-            result = await cl_data_db.del_obj(key=id)
-            logger.info(result)
+        result = await cl_data_db.del_obj(key=id)
+        logger.info(result)
 
-            if result is not None:
-                return jsonify('Probe deleted')
-                #response = Response(response='probe deleted', status=200)
-                #return response
-            else:
-                return jsonify('Probe deletion failed'), 400
-                #response = Response(response='probe deletion failed', status=400)
-                #return response
+        if result is None:
+            return jsonify('Probe deletion failed'), 400
+
+        return jsonify('Probe deleted')
+
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
         return ExpiredSignatureError()
@@ -703,28 +733,31 @@ async def flowrun():
     await cl_data_db.connect_db() 
 
     try:
+        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-            usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-            logger.info(usr_data)
-            usr_data_dict = next(iter(usr_data.values()))
-            logger.info(usr_data_dict)
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-            if api_data is None:
-                return jsonify(error="Resource not found"), 404
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
             
-            api_data_dict = next(iter(api_data.values()))
-            logger.info(api_data_dict)
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
 
-            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-            logger.info(jwt_key)
-            decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-            logger.info(decoded_token)
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
 
-            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-                return Unauthorized()
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
 
         data = await request.get_json()
 
@@ -736,7 +769,6 @@ async def flowrun():
 
             if run_resp.status_code == 200:
                 run_data = await run_resp.json()
-                #await run_resp.aclose()
                 return jsonify(run_data)
             else:
                 return jsonify({'status':'error'}), 400
@@ -760,28 +792,31 @@ async def flowdelete():
     await cl_data_db.connect_db()
 
     try:
+        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-            usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-            logger.info(usr_data)
-            usr_data_dict = next(iter(usr_data.values()))
-            logger.info(usr_data_dict)
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-            if api_data is None:
-                return jsonify(error="Resource not found"), 404
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
             
-            api_data_dict = next(iter(api_data.values()))
-            logger.info(api_data_dict)
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
 
-            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-            logger.info(jwt_key)
-            decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-            logger.info(decoded_token)
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
 
-            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-                return Unauthorized()
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
             
         data = await request.get_json()
 
@@ -793,7 +828,6 @@ async def flowdelete():
 
             if del_resp.status_code == 200:
                 del_data = await del_resp.json()
-                #await del_resp.aclose()
                 return jsonify(del_data)
             else:
                 return jsonify({'status':'error'}), 400
@@ -818,27 +852,31 @@ async def flowsave():
 
     try:
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-            usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-            logger.info(usr_data)
-            usr_data_dict = next(iter(usr_data.values()))
-            logger.info(usr_data_dict)
+        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
 
-            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-            if api_data is None:
-                return jsonify(error="Resource not found"), 404
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
             
-            api_data_dict = next(iter(api_data.values()))
-            logger.info(api_data_dict)
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
 
-            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-            logger.info(jwt_key)
-            decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-            logger.info(decoded_token)
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
 
-            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-                return Unauthorized()
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
 
         data = await request.get_json()
 
@@ -850,7 +888,6 @@ async def flowsave():
 
             if save_resp.status_code == 200:
                 save_data = await save_resp.json()
-                #await save_resp.aclose()
                 return jsonify(save_data)
             else:
                 return jsonify({'status':'error'}), 400
@@ -874,28 +911,31 @@ async def flowload():
     await cl_data_db.connect_db()
 
     try:
+        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is True:
-            usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
-            logger.info(usr_data)
-            usr_data_dict = next(iter(usr_data.values()))
-            logger.info(usr_data_dict)
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
-            api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-            if api_data is None:
-                return jsonify(error="Resource not found"), 404
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
             
-            api_data_dict = next(iter(api_data.values()))
-            logger.info(api_data_dict)
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
 
-            jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-            logger.info(jwt_key)
-            decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-            logger.info(decoded_token)
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
 
-            if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-                return Unauthorized()
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
             
         data = await request.get_json()
 
@@ -931,6 +971,7 @@ async def resetapi():
     await cl_data_db.connect_db()
 
     if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
+        await ip_blocker(auto_ban=True)
         return Unauthorized()
     
     try:
@@ -945,6 +986,7 @@ async def resetapi():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
+            await ip_blocker(auto_ban=True)
             return Unauthorized()
         
         if await cl_data_db.del_obj(key=f"api_dta:{usr_data_dict['db_id']}") is not None:
@@ -1006,6 +1048,7 @@ async def createapi():
     await cl_data_db.connect_db()
 
     if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
+        await ip_blocker(auto_ban=True)
         return Unauthorized()
 
     try:
@@ -1020,9 +1063,9 @@ async def createapi():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
+            await ip_blocker(auto_ban=True)
             return Unauthorized()
 
-        
         api_id = util_obj.key_gen(size=10)
         new_api_key = util_obj.generate_api_key()
         
@@ -1078,6 +1121,44 @@ async def createapi():
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
         return InvalidTokenError()
+    
+@app.route('/createalert', methods=['GET'])
+async def createalert():
+    jwt_token = request.cookies.get("access_token")
+    sess_id = request.args.get('sess_id')
+
+    if not jwt_token or not sess_id:
+        return jsonify(error="Missing required request data"), 400
+
+    await cl_sess_db.connect_db()
+    await cl_data_db.connect_db()
+
+    if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
+        await ip_blocker(auto_ban=True)
+        return Unauthorized()
+
+    try:
+        usr_sess_data = await cl_sess_db.get_all_data(match=f'*{sess_id}*')
+        logger.info(usr_sess_data)
+        usr_data_dict = next(iter(usr_sess_data.values()))
+        logger.info(usr_data_dict)
+
+        jwt_key = usr_data_dict.get(f'usr_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
+
+        if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
+            await ip_blocker(auto_ban=True)
+            return Unauthorized()
+        
+    except ExpiredSignatureError:
+        logger.warning("JWT expired, need to refresh token")
+        return ExpiredSignatureError()
+    except InvalidTokenError as e:
+        logger.error(f"JWT invalid: {e}")
+        return InvalidTokenError()
+    
     
 @app.errorhandler(ExpiredSignatureError)
 async def token_expired():

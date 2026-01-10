@@ -25,6 +25,7 @@ Network Management System that leverages open source LLMs to proactively monitor
 OTS_USER= # onetimesecret.com user email
 OTS_KEY= # onetimesecret.com API key
 OTS_TTL=300 # Time to live for OTP links in seconds (default 5 minutes)
+OTS_REGION=eu
 
 # Brevo API key for sending OTP links
 BREVO_API_KEY=
@@ -46,6 +47,7 @@ RATE_LIMIT_DB=ratelimitdb
 RATE_LIMIT_DB_PORT=9379
 REQUEST_TIMEOUT=600
 API_TOKEN_NAME=wkflw_token
+MAX_AUTH_ATTEMPTS=3
 ```
 
 5. Run the startup script. This installs and configures all necessary dependencies required by umjiniti.

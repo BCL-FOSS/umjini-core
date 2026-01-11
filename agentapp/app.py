@@ -254,7 +254,7 @@ async def register():
 
             await cl_auth_db.connect_db()
 
-            if await cl_auth_db.get_all_data(match=f"reg_key:{username}:*", cnfrm=True) is False or reg_key is None:
+            if await cl_auth_db.get_all_data(match=f"reg_key:{username}:*", cnfrm=True) is False:
                 await ip_blocker()
                 return Unauthorized()
                 

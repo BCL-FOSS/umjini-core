@@ -18,6 +18,10 @@ util_obj = Util()
 async def generate_registration_key(user: str):
     await cl_auth_db.connect_db()
 
+    if await cl_auth_db.get_all_data(match=f'reg_key:{user}*', cnfrm=True) is True:
+        logger.error(f"Registration key already exists for user '{user}'")
+        return
+
     key = str(uuid4())
     key_hash = bcrypt.hash(key)
     reg_key_id = f"reg_key:{user}:{util_obj.key_gen()}"
@@ -27,10 +31,9 @@ async def generate_registration_key(user: str):
                     "id": reg_key_id}
 
     if await cl_auth_db.upload_db_data(id=reg_key_id, data=reg_key_data) > 0:
-        logger.info(f"Registration key generated for user '{user}'")
-        print(f"Registration key generated for user '{user}':\n {key}")
+        logger.info(f"Registration key generated for user '{user}':\n {key}")
     else:
-        print("Registration key gen failed...")
+        logger.error("Registration key gen failed...")
         
 
 

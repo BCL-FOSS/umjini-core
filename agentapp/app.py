@@ -292,7 +292,7 @@ async def register():
 
             logger.info(f"User ID: {user_obj['id']}")
 
-            user_exist = await cl_auth_db.get_all_data(match=f'*{username}*', cnfrm=True)
+            user_exist = await cl_auth_db.get_all_data(match=f'*uid:{username}*', cnfrm=True)
 
             if user_exist is False:
                 # redis db key for new users

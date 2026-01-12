@@ -1100,10 +1100,7 @@ async def createapi():
             new_contact_result = await run_sync(lambda: email_sender_handler.add_contact(email=usr_data_dict.get('eml'),
                                                                 ext_id=usr_data_dict.get('db_id'), attributes=contact_data
                                                             ))()
-            logger.info(f"Brevo contact creation result: {new_contact_result}")
-
-            if isinstance(new_contact_result, dict) is True or new_contact_result.get('id') is not None:
-                logger.info(f"Contact {usr_data_dict.get('eml')} added/updated successfully in Brevo: {new_contact_result}")
+            logger.info(f"Brevo contact creation result: {new_contact_result['id']}")
                 
             html_snippet = f"""<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">
                         <p>Hello,</p>

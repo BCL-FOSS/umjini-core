@@ -129,7 +129,7 @@ async def _receive() -> None:
                 await cl_auth_db.connect_db()
                 await cl_data_db.connect_db()
                 
-                if await cl_auth_db.get_all_data(match=f'*{message['usr']}*', cnfrm=True) is True:
+                if await cl_auth_db.get_all_data(match=f'*uid:{message["usr"]}*', cnfrm=True) is True:
 
                     # NETWORK ADMIN PROMPT
                     INSTRUCTIONS = (
@@ -466,7 +466,7 @@ async def ws():
                 await cl_auth_db.connect_db()
                 await cl_sess_db.connect_db()
 
-                if await cl_auth_db.get_all_data(match=f'*{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
+                if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
                         
                     account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
                     if account_data is None:
@@ -574,7 +574,7 @@ async def init():
         await ip_blocker(auto_ban=True)
         return Unauthorized()
     
-    usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+    usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
     logger.info(usr_data)
     usr_data_dict = next(iter(usr_data.values()))
     logger.info(usr_data_dict)
@@ -630,11 +630,11 @@ async def enroll():
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
 
-    if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+    if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
         await ip_blocker()
         return Unauthorized()
     
-    usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+    usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
     logger.info(usr_data)
     usr_data_dict = next(iter(usr_data.values()))
     logger.info(usr_data_dict)
@@ -681,11 +681,11 @@ async def delete():
     await cl_data_db.connect_db()
 
     try:
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
             await ip_blocker(auto_ban=True)
             return Unauthorized()
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
@@ -740,11 +740,11 @@ async def flowrun():
     await cl_data_db.connect_db() 
 
     try:
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
             await ip_blocker(auto_ban=True)
             return Unauthorized()
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
@@ -800,11 +800,11 @@ async def flowdelete():
     await cl_data_db.connect_db()
 
     try:
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
             await ip_blocker(auto_ban=True)
             return Unauthorized()
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
@@ -861,11 +861,11 @@ async def flowsave():
 
     try:
 
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
             await ip_blocker(auto_ban=True)
             return Unauthorized()
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)
@@ -921,11 +921,11 @@ async def flowload():
     await cl_data_db.connect_db()
 
     try:
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
             await ip_blocker(auto_ban=True)
             return Unauthorized()
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
         usr_data_dict = next(iter(usr_data.values()))
         logger.info(usr_data_dict)

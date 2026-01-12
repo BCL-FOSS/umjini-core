@@ -439,8 +439,8 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        logger.info(websocket.args)
-        if websocket.args is not None:
+        if websocket.args is not None or "".strip():
+            logger.info(websocket.args)
             for key, value in websocket.args.items():
                 match key:
                     case 'id':
@@ -458,54 +458,55 @@ async def ws():
             # Rate limiter for websocket connections using user jwt tokens
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
 
-                if user and id is not None or "":
+                if not user or not id:
+                    await ip_blocker(auto_ban=True)
+                    await websocket.accept()    
+                    await websocket.close(1010, 'Missing required args...')
                     
-                    await cl_auth_db.connect_db()
-                    await cl_sess_db.connect_db()
+                await cl_auth_db.connect_db()
+                await cl_sess_db.connect_db()
 
-                    if await cl_auth_db.get_all_data(match=f'*{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
+                if await cl_auth_db.get_all_data(match=f'*{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
                         
-                        account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
-                        if account_data is None:
-                            await websocket.accept()
-                            await websocket.close(1000)
-                        else:
-                            logger.info(account_data)
-                            sub_dict = next(iter(account_data.values()))
-                            logger.info(sub_dict)
-
-                    jwt_key = sub_dict.get('usr_jwt_secret')
-                    logger.info(jwt_key)
-                    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-                    logger.info(decoded_token)
-
-                    if decoded_token.get('rand') != sub_dict.get('usr_rand'):
-                        await ip_blocker(auto_ban=True)
+                    account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
+                    if account_data is None:
                         await websocket.accept()
-                        await websocket.close(1010, 'websocket authentication failed')
-                        
-                    if decoded_token.get('rand') == sub_dict.get('usr_rand'):
-                        logger.info('websocket authentication successful')
+                        await websocket.close(1000)
+                    else:
+                        logger.info(account_data)
+                        sub_dict = next(iter(account_data.values()))
+                        logger.info(sub_dict)
 
-                        # Initialize a session expiry entry for this connection so that a missing ping
-                        # during the first 5 minutes will still expire the session.
-                        now = datetime.now(tz=timezone.utc)
-                        auth_ping_counter[id] = {
+                jwt_key = sub_dict.get('usr_jwt_secret')
+                logger.info(jwt_key)
+                decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+                logger.info(decoded_token)
+
+                if decoded_token.get('rand') != sub_dict.get('usr_rand'):
+                    await ip_blocker(auto_ban=True)
+                    await websocket.accept()
+                    await websocket.close(1010, 'websocket authentication failed')
+                        
+                logger.info('websocket authentication successful')
+
+                # Initialize a session expiry entry for this connection so that a missing ping
+                # during the first 5 minutes will still expire the session.
+                now = datetime.now(tz=timezone.utc)
+                auth_ping_counter[id] = {
                             "sess_id": id,
                             "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
-                        }
-                        logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
+                    }
+                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
 
-                        recv_task = asyncio.ensure_future(_receive())
+                recv_task = asyncio.ensure_future(_receive())
 
-                        monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+                monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
-                        async for message in broker.subscribe():
-                            await websocket.send(message)
+                async for message in broker.subscribe():
+                    await websocket.send(message)
             else:
                 await websocket.accept()
                 await websocket.close(1010, "Stream rate limit exceeded...")
-
         else:
            await ip_blocker(auto_ban=True)
            await websocket.accept()
@@ -535,6 +536,7 @@ async def ws():
             await recv_task
             await monitor_task
         logger.warning("JWT expired, need to refresh token")
+        await ip_blocker()
         await websocket.accept()
         await websocket.close(1008, 'Token expired')
     except InvalidTokenError as e:
@@ -544,6 +546,7 @@ async def ws():
             await recv_task
             await monitor_task
         logger.error(f"JWT invalid: {e}")
+        await ip_blocker(auto_ban=True)
         await websocket.accept()
         await websocket.close(1000, 'Invalid token')
     finally:
@@ -561,13 +564,14 @@ async def init():
     usr = request.args.get('usr')
 
     if not api_key or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
              
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
 
     if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
-        await ip_blocker()
+        await ip_blocker(auto_ban=True)
         return Unauthorized()
     
     usr_data = await cl_auth_db.get_all_data(match=f'*{usr}*')
@@ -615,6 +619,7 @@ async def enroll():
     site = request.args.get('site')
 
     if not api_key or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
     
     if not site:
@@ -669,6 +674,7 @@ async def delete():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
         
     await cl_auth_db.connect_db()
@@ -727,6 +733,7 @@ async def flowrun():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
@@ -786,6 +793,7 @@ async def flowdelete():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
@@ -845,6 +853,7 @@ async def flowsave():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
 
     await cl_auth_db.connect_db()
@@ -905,6 +914,7 @@ async def flowload():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
@@ -965,6 +975,7 @@ async def resetapi():
     sess_id = request.args.get('sess_id')
 
     if not jwt_token or not sess_id:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
     
     await cl_sess_db.connect_db()
@@ -1042,6 +1053,7 @@ async def createapi():
     sess_id = request.args.get('sess_id')
 
     if not jwt_token or not sess_id:
+        await ip_blocker(auto_ban=True)
         return jsonify(error="Missing required request data"), 400
 
     await cl_sess_db.connect_db()

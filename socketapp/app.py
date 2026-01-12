@@ -1089,7 +1089,7 @@ async def createapi():
         
         logger.info(usr_data_dict['db_id'])
 
-        if await cl_data_db.upload_db_data(id=f"api:{usr_data_dict['db_id']}", data=updated_api_data) > 0:
+        if await cl_data_db.upload_db_data(id=f"api_dta:{usr_data_dict['db_id']}", data=updated_api_data) > 0:
             link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
 
             #check_contact = await run_sync(email_sender_handler.get_contact(user_id=usr_data_dict.get('db_id')))

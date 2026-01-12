@@ -1029,7 +1029,7 @@ async def resetapi():
                                                                                  to=[{"name": usr_data_dict.get('unm'), "email": usr_data_dict.get('eml')}],
                                                                                  subject=f"umjiniti-core API Key Reset for {usr_data_dict.get('unm')}",
                                                                                  html_content=html_snippet
-                                                                                 ))
+                                                                                 ))()
                 
             if send_result is None:
                 logger.error("Failed to send API key reset email")
@@ -1090,18 +1090,19 @@ async def createapi():
         if await cl_data_db.upload_db_data(id=f"api_dta:{usr_data_dict['db_id']}", data=updated_api_data) > 0:
             link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
 
-            check_contact = await run_sync(email_sender_handler.get_contact(user_id=usr_data_dict.get('db_id')))
+            #check_contact = await run_sync(email_sender_handler.get_contact(user_id=usr_data_dict.get('db_id')))
 
-            if check_contact is None:
-                contact_data = {"LASTNAME": usr_data_dict.get('lname'),
+            contact_data = {"LASTNAME": usr_data_dict.get('lname'),
                                 "FIRSTNAME": usr_data_dict.get('fname'),
                                 }
-                new_contact_result = await run_sync(email_sender_handler.add_contact(email=usr_data_dict.get('eml'),
+            new_contact_result = await run_sync(email_sender_handler.add_contact(email=usr_data_dict.get('eml'),
                                                                 ext_id=usr_data_dict.get('db_id'), attributes=contact_data
-                                                            ))
-                if new_contact_result is None:
-                    logger.error("Failed to create new contact for API key creation email")
-                    return jsonify('Brevo contact creation failed'), 400
+                                                            ))()
+            logger.info(f"Brevo contact creation result: {new_contact_result}")
+
+            if new_contact_result is None:
+                logger.error("Failed to create new contact for API key creation email")
+                return jsonify('Brevo contact creation failed'), 400
                 
             html_snippet = f"""<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">
                         <p>Hello,</p>
@@ -1115,7 +1116,7 @@ async def createapi():
                                                                                  to=[{"name": usr_data_dict.get('unm'), "email": usr_data_dict.get('eml')}],
                                                                                  subject=f"New umjiniti-core API Key Generated for {usr_data_dict.get('unm')}",
                                                                                  html_content=html_snippet
-                                                                                 ))
+                                                                                 ))()
                 
             if send_result is None:
                 logger.error("Failed to send API key creation email")

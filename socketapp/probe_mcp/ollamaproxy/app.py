@@ -213,15 +213,14 @@ async def tools():
     tools = data.get("tools")
     user = data.get("user")
     api_key = data.get("api_key")
-    passed_headers = headers.copy()
-    passed_headers['x-api-key'] = api_key
-    logger.info(passed_headers)
+    headers['x-api-key'] = api_key
+    logger.info(headers)
 
     # --- Step A: Collect tool schemas from MCP servers ---
     tool_schemas = []
     for t in tools:
         if t.get("type") == "mcp":
-            mcp_tools = await fetch_mcp_tools(server_url=t["server_url"], mcp_headers=passed_headers)
+            mcp_tools = await fetch_mcp_tools(server_url=t["server_url"], mcp_headers=headers)
             if mcp_tools is None:
                 return {'Error': f"Failed to fetch tools from {t['server_url']}"}
             for tool in mcp_tools:
@@ -365,7 +364,7 @@ async def tools():
                 break
 
         if server_url:
-            result = await call_mcp(server_url=server_url, tool_call=parsed, mcp_headers=passed_headers)
+            result = await call_mcp(server_url=server_url, tool_call=parsed, mcp_headers=headers)
             tool_outputs.append({"tool": tool_name, "output": result})
             final_output = json.dumps(result)
         else:

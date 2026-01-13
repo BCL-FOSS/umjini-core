@@ -108,6 +108,17 @@ async def ip_blocker(auto_ban: bool = False):
             auth_attempts.pop(request.access_route[-1], None)
             #abort(403) 
 
+async def require_bearer_token():
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        await ip_blocker(auto_ban=True)
+        raise Unauthorized("Missing or invalid Authorization header")
+
+    token = auth_header.removeprefix("Bearer ").strip()
+
+    return token
+
 async def _receive() -> None:
     while True:
         message = await websocket.receive()
@@ -439,15 +450,10 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        if websocket.args is not None or "".strip():
+        if websocket.args.get('id') and websocket.args.get('unm'):
             logger.info(websocket.args)
-            for key, value in websocket.args.items():
-                match key:
-                    case 'id':
-                        id = value
-                    case 'amp;unm':
-                        user = value
-
+            id = websocket.args.get('id')
+            user = websocket.args.get('unm')
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
             logger.info(id)

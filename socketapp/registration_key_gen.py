@@ -16,6 +16,10 @@ util_obj = Util()
 
 
 async def generate_registration_key(user: str):
+    if len(user) < 1 or len(user) < 5:
+        logger.error("Username must be provided and cannot be empty.")
+        return
+    
     await cl_auth_db.connect_db()
 
     if await cl_auth_db.get_all_data(match=f'reg_key:{user}*', cnfrm=True) is True:

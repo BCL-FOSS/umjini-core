@@ -670,7 +670,7 @@ async def enroll():
     # Adopt new probe
     adopted_probe_data = await request.get_json()
     logger.info(adopted_probe_data)
-    prb_db_id = f"prb:{site}:{adopted_probe_data['prb_id']}"
+    prb_db_id = f"prb:{usr}:{adopted_probe_data['prb_id']}"
     adopted_probe_data['db_id'] = prb_db_id
     logger.info(adopted_probe_data)
 
@@ -720,7 +720,7 @@ async def delete():
             
         data = await request.get_json()
         logger.info(data)
-        id = data.get('id')
+        id = data['id']
         logger.info(id)
 
         result = await cl_data_db.del_obj(key=id)

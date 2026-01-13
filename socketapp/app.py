@@ -224,26 +224,25 @@ async def _receive() -> None:
                             await broker.publish(message=json.dumps(err_msg_data))
                         else:
                             output_message = ""
-                            if 'traceroute' in message['msg'].lower():
-                                lst = ast.literal_eval(tool_msg['output_text'])
+                            lst = ast.literal_eval(tool_msg['output_text'])
 
-                                # Extract the traceroute output (element at index 1)
-                                traceroute_output = lst[1]
+                            # Extract the traceroute output (element at index 1)
+                            traceroute_output = lst[1]
 
-                                # Convert escaped newlines to real newlines
-                                decoded_output = traceroute_output.encode('utf-8').decode('unicode_escape')
+                            # Convert escaped newlines to real newlines
+                            decoded_output = traceroute_output.encode('utf-8').decode('unicode_escape')
 
-                                # Split into lines (each line as a string, with '\n' at the end if you want)
-                                lines = decoded_output.split('\n')
+                            # Split into lines (each line as a string, with '\n' at the end if you want)
+                            lines = decoded_output.split('\n')
 
-                                # Print each line (as string variables)
-                                for i, line in enumerate(lines):
-                                    #var_name = f"line_{i+1}"
-                                    hop = f'{line}\n'
-                                    #logger.info(hop)
-                                    output_message+=hop
+                            # Print each line (as string variables)
+                            for i, line in enumerate(lines):
+                                #var_name = f"line_{i+1}"
+                                hop = f'{line}\n'
+                                #logger.info(hop)
+                                output_message+=hop
                                 
-                                logger.info(output_message)
+                            logger.info(output_message)
 
                             """
                             smmry_payload = {

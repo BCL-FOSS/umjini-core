@@ -450,10 +450,15 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        if websocket.args.get('id') and websocket.args.get('unm'):
+        if websocket.args is not None or "".strip():
             logger.info(websocket.args)
-            id = websocket.args.get('id')
-            user = websocket.args.get('unm')
+            for key, value in websocket.args.items():
+                match key:
+                    case 'id':
+                        id = value
+                    case 'amp;unm':
+                        user = value
+
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
             logger.info(id)

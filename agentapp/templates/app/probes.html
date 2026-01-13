@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (probeDeleteConfirmation) {
           const payload = { id: rowData.id };
           //const resp = await fetch(endpoint, {method: "POST", headers: {"Content-Type": "application/json", "X-ACCESS-TOKEN": "{{ jwt_token }}"}, body: JSON.stringify(payload)});
-          const resp = await fetch(endpoint, {method: "POST", credentials:"same-origin", body: JSON.stringify(payload)});
+          const resp = await fetch(endpoint, {method: "POST", credentials:"same-origin", body: payload});
           if (resp.ok) {
             alert("Probe deletion successful");
           } else {

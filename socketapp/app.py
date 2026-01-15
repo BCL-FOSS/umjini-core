@@ -273,7 +273,7 @@ async def _receive() -> None:
                             output_message = ""
                             logger.info(f"Request result = {tool_msg['output_text']}")
 
-                            parsed_results = await run_sync(lambda: util_obj.extract_output_text_line_by_line(tool_msg['output_text']))()
+                            parsed_results = await run_sync(lambda: util_obj.extract_output_text_line_by_line(tool_results=tool_msg['output_text']))()
 
                             """
                             match tool_msg['output_type']:

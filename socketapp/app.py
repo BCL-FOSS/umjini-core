@@ -271,8 +271,11 @@ async def _receive() -> None:
                             """
 
                             output_message = ""
-                            logger.info(f"Request result = {tool_msg['output_text']}")
+                            logger.info(f"Request result = {tool_msg['output_text']}\n")
+                            for tool_result in tool_msg['output_text']:
+                                logger.info(f"Tool: {tool_result['tool']} result: {tool_result['output']}\n\n")
 
+                            """
                             match tool_msg['output_type']:
                                 case 'multi_tool':
                                     for tool_result in tool_msg['output_text']:
@@ -309,6 +312,9 @@ async def _receive() -> None:
                                         output_message+=net_cmd_data
 
                             logger.info(output_message)
+                            
+                            """
+                            
 
                             agnt_msg_data = {
                                 "from": "agent",

@@ -295,8 +295,34 @@ async def _receive() -> None:
                             if isinstance(tool_msg['output_text'], list):
                                 for item in tool_msg['output_text']:
                                     logger.info(item)
-                                    logger.info(item.get('output'))
-                                    output_message += f"{item}\n"
+                                    # Extract the 'output' key from each item and handle different shapes
+                                    output_field = item.get('output')
+                                    if output_field is None:
+                                        continue
+
+                                    text_parts = []
+
+                                    # If 'output' is a list, prefer index 1 if it's a string, otherwise gather any string elements
+                                    if isinstance(output_field, list):
+                                        if len(output_field) > 1 and isinstance(output_field[1], str):
+                                            text_parts.append(output_field[1])
+                                        else:
+                                            for part in output_field:
+                                                if isinstance(part, str) and part:
+                                                    text_parts.append(part)
+                                    # If 'output' is a single string, use it directly
+                                    elif isinstance(output_field, str):
+                                        text_parts.append(output_field)
+
+                                    # Normalize escaped newlines and append each line to output_message
+                                    for part in text_parts:
+                                        try:
+                                            decoded = part.encode('utf-8').decode('unicode_escape')
+                                        except Exception:
+                                            decoded = part
+                                        lines = decoded.splitlines()
+                                        for line in lines:
+                                            output_message += f"{line}\n"
 
                             logger.info(output_message)
 

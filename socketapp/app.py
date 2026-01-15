@@ -272,8 +272,7 @@ async def _receive() -> None:
 
                             output_message = ""
                             logger.info(f"Request result = {tool_msg['output_text']}\n")
-                            for tool_result in tool_msg['output_text']:
-                                logger.info(f"Tool: {tool_result['tool']} result: {tool_result['output']}\n\n")
+                            logger.info(type(tool_msg['output_text']))
 
                             """
                             match tool_msg['output_type']:
@@ -314,7 +313,7 @@ async def _receive() -> None:
                             logger.info(output_message)
                             
                             """
-                            
+                            output_message = tool_msg['output_text']
 
                             agnt_msg_data = {
                                 "from": "agent",

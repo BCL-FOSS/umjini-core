@@ -274,6 +274,12 @@ async def _receive() -> None:
                             logger.info(f"Request result = {tool_msg['output_text']}\n")
                             logger.info(type(tool_msg['output_text']))
 
+                            data = json.loads(tool_msg['output_text'])
+                            outputs = [item['output'] for item in data]
+                            logger.info(f"Extracted outputs: {outputs}")
+                            texts = [out[1] for out in outputs]
+                            logger.info(texts)
+
                             """
                             match tool_msg['output_type']:
                                 case 'multi_tool':

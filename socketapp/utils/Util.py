@@ -22,16 +22,21 @@ class Util:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def generate_ephemeral_token(self, id: str, rand: str,  secret_key: str, expire: int = 3) -> str:
+    def generate_ephemeral_token(self, id: str, rand: str,  secret_key: str, expire: int = 3, type: str = None) -> str:
 
         local_tz = get_localzone()  
         now = datetime.now(tz=timezone.utc)
+
+        if type == 'prb':
+            expire_value = timedelta(minutes=30)
+        else:
+            expire_value = timedelta(hours=expire)
         
         payload = {
-            'iss': 'https://baughcl.tech/',
+            'iss': f"https://{os.environ.get('SERVER_NAME')}",
             'id': id,
             'rand': rand,
-            'exp': now + timedelta(hours=expire),
+            'exp': now + expire_value,
         }
 
         encoded_jwt = jwt.encode(payload=payload, key=secret_key, algorithm="HS256")

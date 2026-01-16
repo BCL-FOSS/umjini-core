@@ -28,7 +28,7 @@
                   <label for="mcp-dropdown" class="form-label">Select MCP Option:</label>
                   <select id="mcp-dropdown" class="form-select">
                     {% for opt in options.values() %}
-                      <option value="{{ opt.url }}/llm/mcp">{{ opt.name }}: {{ opt.url }}</option>
+                      <option value="{{ opt.url }}/llm/mcp">{{ opt.name }}</option>
                     {% endfor %}
                   </select>
                 </div>
@@ -45,6 +45,7 @@
                             <div class="pt-1">
                               <p class="fw-bold mb-0">Probe: {{ opt.name }}</p>
                               <p class="small text-muted">Site: {{ opt.site }}</p>
+                              <p class="small text-muted">Host Ports: {{ opt.iface_list }}</p>
                               <p class="small text-muted">URL: {{ opt.url }}/llm/mcp</p>
                             </div>
                           </div>

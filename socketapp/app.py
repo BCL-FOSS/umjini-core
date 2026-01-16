@@ -54,6 +54,7 @@ email_sender_handler = EmailSenderHandler(brevo_api_key=os.environ.get('BREVO_AP
 cli = OneTimeSecretCli(os.environ.get('OTS_USER'), os.environ.get('OTS_KEY'), os.environ.get('REGION'))
 auth_attempts={}
 max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
+connected_probes={}
 
 # Helper functions to quantize datetimes to 5-minute increments
 def round_down_to_5min(dt: datetime) -> datetime:
@@ -79,6 +80,28 @@ def round_up_to_5min(dt: datetime) -> datetime:
     res = base + timedelta(minutes=add_minutes)
     return res.replace(second=0, microsecond=0)
 
+# Helper functions to quantize datetimes to 30-second increments
+def round_down_to_30sec(dt: datetime) -> datetime:
+    """Round dt down (floor) to the nearest 30-second boundary."""
+    if dt is None:
+        return dt
+    # Determine the 30-second bucket: 0-29 => 0, 30-59 => 30
+    sec = (dt.second // 30) * 30
+    return dt.replace(second=sec, microsecond=0)
+
+def round_up_to_30sec(dt: datetime) -> datetime:
+    """Round dt up (ceiling) to the next 30-second boundary (if already on boundary, keep)."""
+    if dt is None:
+        return dt
+    # If already exact boundary, return as-is (but zero microseconds)
+    if (dt.second % 30) == 0 and dt.microsecond == 0:
+        return dt.replace(microsecond=0)
+    remainder = dt.second % 30
+    add_seconds = 30 - remainder
+    base = dt.replace(microsecond=0)
+    res = base + timedelta(seconds=add_seconds)
+    return res.replace(microsecond=0)
+
 async def ip_blocker(auto_ban: bool = False):
     if auto_ban is True:
         logger.info(f"Auto banning IP: {request.access_route[-1]}")
@@ -89,7 +112,7 @@ async def ip_blocker(auto_ban: bool = False):
         if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
             logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
             auth_attempts.pop(request.access_route[-1], None)
-            #abort(403) 
+            abort(403) 
 
     if request.access_route[-1] not in auth_attempts:
         auth_attempts[request.access_route[-1]] = 1
@@ -106,7 +129,7 @@ async def ip_blocker(auto_ban: bool = False):
         if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
             logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
             auth_attempts.pop(request.access_route[-1], None)
-            #abort(403) 
+            abort(403) 
 
 async def require_bearer_token():
     auth_header = request.headers.get("Authorization")
@@ -293,6 +316,7 @@ async def _receive() -> None:
                     return Unauthorized()  # Session does not exist, ignore ping
                 
                 global auth_ping_counter
+                global connected_probes
                 
                 # Check if we have an expiry entry for this session and validate it
                 now = datetime.now(tz=timezone.utc)
@@ -308,7 +332,8 @@ async def _receive() -> None:
                         auth_ping_counter[message["sess_id"]] = entry
 
                         logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
-                   
+
+                    """
                     else:
                         logger.info(f"Ping for session {message['sess_id']} received after expiry; dropping and removing entry")
 
@@ -335,6 +360,10 @@ async def _receive() -> None:
                         #client_auth.logout_user()
                         logger.info(f"User session {message["sess_id"]} logged out due to inactivity")
                         return resp
+                    
+                    """
+                    
+                """
                 else:
                     # No entry existed — create a new one and respond with a 5 minute expiry
                     now = datetime.now(tz=timezone.utc)
@@ -346,7 +375,23 @@ async def _receive() -> None:
 
                     auth_ping_counter[message["sess_id"]] = pong_msg_data
                     logger.debug(f"Created ping expiry for new session {message['sess_id']} -> {pong_msg_data['exp']}")
-           
+                
+                """
+            case 'prb_chk':
+                now = datetime.now(tz=timezone.utc)
+
+                if message["sess_id"] in connected_probes:
+                    entry = connected_probes.get(message["sess_id"])
+                    exp = entry.get('exp')
+
+                    # If the stored expiry is still in the future, refresh it (sliding window)
+                    if exp and now <= exp:
+                        new_exp = round_up_to_30sec(now + timedelta(seconds=30))
+                        entry['exp'] = new_exp
+                        connected_probes[message["sess_id"]] = entry
+
+                        logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
+
             case _:
                 pass
 
@@ -359,11 +404,21 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
     logger.info(f"Starting session watchdog for {sess_id}")
     try:
         while True:
-            entry = auth_ping_counter.get(sess_id)
+            USER = False
+            PROBE = False
+
+            if auth_ping_counter.get(sess_id):
+                entry = auth_ping_counter.get(sess_id)
+                USER = True
+
+            if connected_probes.get(sess_id):
+                entry = connected_probes.get(sess_id)
+                PROBE = True
+
             now = datetime.now(tz=timezone.utc)
             
             if not entry:
-                # No entry yet (client hasn't pinged). We still want to expire after 5 minutes from connection start,
+                # No entry yet (client hasn't pinged). We still want to expire after specified time from connection start,
                 # but the connection code initializes an entry at connect. So just sleep and continue.
                 await asyncio.sleep(check_interval)
                 continue
@@ -373,39 +428,56 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 await asyncio.sleep(check_interval)
                 continue
 
-            # Quantize times to 5-minute increments to avoid small-drift expirations.
-            now_quant = round_down_to_5min(now)
-            exp_quant = round_up_to_5min(exp)
+            # Quantize times to avoid small-drift expirations.
+            if USER is True:
+                now_quant = round_down_to_5min(now)
+                exp_quant = round_up_to_5min(exp)
+
+            if PROBE is True:
+                now_quant = round_down_to_30sec(now)
+                exp_quant = round_up_to_30sec(exp)
 
             logger.debug(f"Session {sess_id} now_quant={now_quant} exp_quant={exp_quant} (raw now={now} raw exp={exp})")
 
-            # If expired, perform logout and close websocket
+            # Expiration occurred
             if now_quant > exp_quant:
                 logger.info(f"Session {sess_id} expired at {exp_quant} (now_quant={now_quant}), logging out and closing ws")
-                # Remove tracking
-                auth_ping_counter.pop(sess_id, None)
 
-                # Remove user session profile from sess redis db/automatically invalidates active JWT tokens
-                #auth_id = request.args.get('auth_id')
-                cur_usr_id = sess_id
+                if USER is True:
+                    # Remove tracking
+                    auth_ping_counter.pop(sess_id, None)
 
-                await cl_sess_db.connect_db()
-                if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
-                    await ip_blocker(auto_ban=True)
-                    return Unauthorized()
+                    # Remove user session profile from sess redis db/automatically invalidates active JWT tokens   
+                    cur_usr_id = sess_id
+                    await cl_sess_db.connect_db()
+                    if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
+                            await ip_blocker(auto_ban=True)
+                            return Unauthorized()
+                        
+                    result = await cl_sess_db.del_obj(key=cur_usr_id)
+                    logger.info(f"Session {sess_id} data removal result: {result}")
+
+                    # Clear JWT cookie
+                    resp = jsonify({"Session": "Logged out due to inactivity"})
+                    resp.delete_cookie("access_token")
+                    resp.delete_cookie("api_access_token")
+
+                    logger.info(f"User session {sess_id} logged out due to inactivity")
+                    return resp
                 
-                result = await cl_sess_db.del_obj(key=cur_usr_id)
-                logger.info(f"Session {sess_id} data removal result: {result}")
+                if PROBE is True:
+                    logger.info('Probe is either offline or a network outage has occurred.')
+                    connected_probes.pop(sess_id)
+                    probe_data = await cl_data_db.get_all_data(match=f"*{sess_id}*")
+                    probe_data_dict = next(iter(probe_data.values()))
 
-                # Clear JWT cookie
-                resp = jsonify({"Session": "Logged out due to inactivity"})
-                resp.delete_cookie("access_token")
-                resp.delete_cookie("api_access_token")
+                    probe_outage_data = {'alert_type': 'outage',
+                                         'site': probe_data_dict.get('site'),
+                                         'name': probe_data_dict.get('name'),
+                                         'url': probe_data_dict.get('url'),
+                                         'timestamp': datetime.now(tz=timezone.utc)}
 
-                # quart-auth sign out
-                #client_auth.logout_user()
-                logger.info(f"User session {sess_id} logged out due to inactivity")
-                return resp
+                    await broker.publish(message=json.dumps(probe_outage_data))
 
             else:
                 # Not yet expired: sleep until the sooner of check_interval or time to expiry (based on quantized values)
@@ -413,37 +485,28 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 sleep_for = min(check_interval, max(seconds_to_expiry, 0))
                 logger.debug(f"Session {sess_id} not yet expired (expires at {exp_quant}), sleeping for {sleep_for} seconds")
                 await asyncio.sleep(sleep_for)
-                """
-                # Not yet expired: sleep until the sooner of check_interval or time to expiry
-                seconds_to_expiry = (exp - now).total_seconds()
-                sleep_for = min(check_interval, max(seconds_to_expiry, 0))
-                logger.debug(f"Session {sess_id} not yet expired (expires at {exp}), sleeping for {sleep_for} seconds")
-                await asyncio.sleep(sleep_for)
-                """
                 
     except asyncio.CancelledError:
         logger.info(f"Session watchdog for {sess_id} cancelled")
-        # Remove tracking
-        auth_ping_counter.pop(sess_id, None)
+        if USER is True:
+            auth_ping_counter.pop(sess_id)
+            cur_usr_id = sess_id
 
-        # Remove user session profile from sess redis db/automatically invalidates active JWT tokens
-        #auth_id = request.args.get('auth_id')
-        cur_usr_id = sess_id
+            await cl_sess_db.connect_db()
+            if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
+                return Unauthorized()
+                        
+            result = await cl_sess_db.del_obj(key=cur_usr_id)
+            logger.info(f"Session {sess_id} data removal result: {result}")
 
-        await cl_sess_db.connect_db()
-        if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
-            return Unauthorized()
-                
-        result = await cl_sess_db.del_obj(key=cur_usr_id)
-        logger.info(f"Session {sess_id} data removal result: {result}")
+            resp = jsonify({"Session": "Logged out as user ended session"})
+            resp.delete_cookie("access_token")
+            resp.delete_cookie("api_access_token")
 
-        # Clear JWT cookie
-        resp = jsonify({"Session": "Logged out as user ended session"})
-        resp.delete_cookie("access_token")
-        resp.delete_cookie("api_access_token")
-
-        logger.info(f"User session {sess_id} logged out due to session end")
-        return resp
+            logger.info(f"User session {sess_id} logged out due to session end")
+            return resp
+        if PROBE is True:
+            connected_probes.pop(sess_id)
     except Exception as e:
         logger.exception(f"Unhandled error in session_watchdog for {sess_id}: {e}")
 
@@ -458,18 +521,28 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        if websocket.args is not None or "".strip():
+        if websocket.args is not None:
             logger.info(websocket.args)
+            """
             for key, value in websocket.args.items():
                 match key:
                     case 'id':
                         id = value
                     case 'amp;unm':
                         user = value
+                    case 'amp;prb':
+                        probe_conn = value
+                    case 'amp;prb_id':
+                        probe_id = value
+            
+            """
+            id = websocket.args.get('id')
+            user = websocket.args.get('unm')
+            probe_conn = websocket.args.get('prb')
+            probe_id = websocket.args.get('prb_id')
 
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
-            logger.info(id)
 
             # Set rate limit check connection ID to the jwt used to initiate the connection
             client_connection = jwt_token
@@ -477,7 +550,7 @@ async def ws():
             # Rate limiter for websocket connections using user jwt tokens
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
 
-                if not user or not id:
+                if not user:
                     await ip_blocker(auto_ban=True)
                     await websocket.accept()    
                     await websocket.close(1010, 'Missing required args...')
@@ -496,30 +569,65 @@ async def ws():
                         sub_dict = next(iter(account_data.values()))
                         logger.info(sub_dict)
 
-                jwt_key = sub_dict.get('usr_jwt_secret')
-                logger.info(jwt_key)
-                decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-                logger.info(decoded_token)
+                    jwt_key = sub_dict.get('usr_jwt_secret')
+                    logger.info(jwt_key)
+                    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+                    logger.info(decoded_token)
 
-                if decoded_token.get('rand') != sub_dict.get('usr_rand'):
-                    await ip_blocker(auto_ban=True)
-                    await websocket.accept()
-                    await websocket.close(1010, 'websocket authentication failed')
+                    if decoded_token.get('rand') != sub_dict.get('usr_rand'):
+                        await ip_blocker(auto_ban=True)
+                        await websocket.accept()
+                        await websocket.close(1010, 'websocket authentication failed')
+
+                if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) and probe_conn.strip().lower() == 'y':
+                    user_data = await cl_auth_db.get_all_data(match=f'uid:{user}')
+                    user_data_dict = next(iter(user_data.values()))
+                    user_data_dict.get('db_id')
+
+                    api_data = await cl_data_db.get_all_data(match=f"api_dta:{user_data_dict.get('db_id')}")
+
+                    if api_data is None:
+                        return jsonify(error="Resource not found"), 404
+                        
+                    api_data_dict = next(iter(api_data.values()))
+                    logger.info(api_data_dict)
+                    
+                    api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+                    api_rand = api_data_dict.get(f'{api_name}_rand')
+                    decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
+
+                    if decoded_token.get('rand') != api_rand:
+                        await ip_blocker(auto_ban=True)
+                        await websocket.accept()
+                        await websocket.close(1010, 'websocket authentication failed')
                         
                 logger.info('websocket authentication successful')
 
-                # Initialize a session expiry entry for this connection so that a missing ping
-                # during the first 5 minutes will still expire the session.
-                now = datetime.now(tz=timezone.utc)
-                auth_ping_counter[id] = {
-                            "sess_id": id,
-                            "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
-                    }
-                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
+                if id and not auth_ping_counter[id]:
+                    # Initialize a session expiry entry for this connection so that a missing ping
+                    # during the first 5 minutes will still expire the session.
+                    now = datetime.now(tz=timezone.utc)
+                    auth_ping_counter[id] = {
+                                "sess_id": id,
+                                "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
+                        }
+                    logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
 
-                recv_task = asyncio.ensure_future(_receive())
+                    recv_task = asyncio.ensure_future(_receive())
 
-                monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+                    monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+
+                if probe_id and not connected_probes[probe_id]:
+                    now = datetime.now(tz=timezone.utc)
+                    connected_probes[probe_id] = {'conn_start': now,
+                                                  'id': probe_id,
+                                                  "exp": round_up_to_30sec(now + timedelta(seconds=30)),
+                                                  }
+                    logger.debug(f"Initialized ping expiry for session {probe_id} -> {connected_probes[probe_id]['exp']}")
+
+                    recv_task = asyncio.ensure_future(_receive())
+
+                    monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
 
                 async for message in broker.subscribe():
                     await websocket.send(message)
@@ -529,7 +637,7 @@ async def ws():
         else:
            await ip_blocker(auto_ban=True)
            await websocket.accept()
-           await websocket.close(1010, "Missing required args...")
+           await websocket.close(1010, "Error occurred...")
     except Exception as e:
         if recv_task and monitor_task:
             recv_task.cancel()
@@ -584,10 +692,11 @@ async def init():
 
     if not api_key or not usr:
         await ip_blocker(auto_ban=True)
-        return jsonify(error="Missing required request data"), 400
+        return jsonify(error="Error occurred"), 400
              
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
+    await cl_sess_db.connect_db()
 
     if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
         await ip_blocker(auto_ban=True)
@@ -601,7 +710,7 @@ async def init():
     api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
     if api_data is None:
-        return jsonify(error="Resource not found"), 404
+        return jsonify(error="Error occurred"), 404
         
     api_data_dict = next(iter(api_data.values()))
     logger.info(api_data_dict)
@@ -615,7 +724,7 @@ async def init():
     api_id = api_data_dict.get(f'{api_name}_id')
        
     # Generate JWT to authenticate probe sessions with monitor backend
-    jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, expire=1)
+    jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, type='prb')
         
     # Build response with cookie
     response = Response(response='Probe Token Success', status=200)
@@ -636,15 +745,14 @@ async def enroll():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
     usr = request.args.get('usr')
     site = request.args.get('site')
+    jwt_token = request.cookies.get('access_token')
 
-    if not api_key or not usr:
+    if not api_key or not usr or not jwt_token:
         await ip_blocker(auto_ban=True)
-        return jsonify(error="Missing required request data"), 400
+        return jsonify(error="Error occurred"), 400
     
     if not site:
         site = 'default'
-
-    jwt_token = request.cookies.get('access_token')
         
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()

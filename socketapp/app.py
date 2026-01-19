@@ -392,6 +392,13 @@ async def _receive() -> None:
 
                         logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
 
+            case "prb_act_rslt":
+                match message['act_rslt_type']:
+                    case 'pcap_lcl':
+                        data = message['act_rslt']  
+                    case 'pcap_tux':
+                        data = message['act_rslt']  
+
             case _:
                 pass
 

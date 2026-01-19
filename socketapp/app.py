@@ -521,7 +521,7 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        if websocket.args is not None:
+        if websocket.args is not None and websocket.cookies is not None:
             logger.info(websocket.args)
             """
             for key, value in websocket.args.items():
@@ -562,6 +562,7 @@ async def ws():
                         
                     account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
                     if account_data is None:
+                        await ip_blocker(auto_ban=True)
                         await websocket.accept()
                         await websocket.close(1000)
                     else:
@@ -635,7 +636,7 @@ async def ws():
                 await websocket.accept()
                 await websocket.close(1010, "Stream rate limit exceeded...")
         else:
-           await ip_blocker(auto_ban=True)
+           await ip_blocker()
            await websocket.accept()
            await websocket.close(1010, "Error occurred...")
     except Exception as e:
@@ -673,7 +674,7 @@ async def ws():
             await recv_task
             await monitor_task
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker(auto_ban=True)
+        await ip_blocker()
         await websocket.accept()
         await websocket.close(1000, 'Invalid token')
     finally:

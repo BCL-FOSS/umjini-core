@@ -537,14 +537,13 @@ async def ws():
                 id = websocket.args.get('id')
             
             if websocket.args.get('amp;unm') is not None:
-                user = websocket.args.get('unm')
-                logger.info(f'connecting user: {user}')
+                user = websocket.args.get('amp;unm')
 
             if websocket.args.get('prb') is not None:
                 probe_conn = websocket.args.get('prb')
 
             if websocket.args.get('amp;prb_id') is not None:
-                probe_id = websocket.args.get('prb_id')
+                probe_id = websocket.args.get('amp;prb_id')
 
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
@@ -607,6 +606,7 @@ async def ws():
                             raise InvalidTokenError()
                         
                 logger.info('websocket authentication successful')
+                await websocket.accept()
 
                 if id is not None and not auth_ping_counter[id]:
                     # Initialize a session expiry entry for this connection so that a missing ping
@@ -672,16 +672,16 @@ async def init():
     usr = request.args.get('usr')
 
     if not api_key or not usr:
-        await ip_blocker()
-        return jsonify(error="Error occurred"), 400
+        await ip_blocker(conn_obj=request, auto_ban=True)
+        abort(401)
              
     await cl_auth_db.connect_db()
     await cl_data_db.connect_db()
     await cl_sess_db.connect_db()
 
     if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
-        await ip_blocker()
-        return Unauthorized()
+        await ip_blocker(conn_obj=request, auto_ban=True)
+        abort(401)
     
     usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
     logger.info(usr_data)
@@ -691,14 +691,14 @@ async def init():
     api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
     if api_data is None:
-        return jsonify(error="Error occurred"), 404
+        return jsonify(error="Generate your umjiniti-core API key."), 404
         
     api_data_dict = next(iter(api_data.values()))
     logger.info(api_data_dict)
  
     if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
-        await ip_blocker()
-        return Unauthorized()
+        await ip_blocker(conn_obj=request, auto_ban=True)
+        abort(401)
     
     api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
     api_rand = api_data_dict.get(f'{api_name}_rand')
@@ -731,8 +731,8 @@ async def enroll():
     jwt_token = request.cookies.get('access_token')
 
     if not api_key or not usr or not jwt_token:
-        await ip_blocker()
-        return jsonify(error="Error occurred"), 400
+        await ip_blocker(conn_obj=request, auto_ban=True)
+        abort(401)
     
     if not site:
         site = 'default'
@@ -743,8 +743,8 @@ async def enroll():
     try:
 
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker()
-            return Unauthorized()
+            await ip_blocker(conn_obj=request)
+            abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
         logger.info(usr_data)
@@ -754,7 +754,7 @@ async def enroll():
         api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
         if api_data is None:
-            return jsonify(error="Resource not found"), 404
+            return jsonify(error="Error occurred"), 400
             
         api_data_dict = next(iter(api_data.values()))
         logger.info(api_data_dict)
@@ -766,7 +766,7 @@ async def enroll():
 
         if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') or bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
             await ip_blocker()
-            return Unauthorized()
+            abort(401)
                 
         # Adopt new probe
         adopted_probe_data = await request.get_json()

@@ -525,22 +525,23 @@ async def ws():
     try:
         if websocket.cookies.get("access_token") is not None:
             logger.info(websocket.args)
+
+            id = None
+            user = None
+            probe_conn = None
+            probe_id = None
+
+            if websocket.args.get('id') is not None:
+                id = websocket.args.get('id')
             
-            for key, value in websocket.args.items():
-                match key:
-                    case 'id':
-                        id = value
-                    case 'amp;unm':
-                        user = value
-                    case 'amp;prb':
-                        probe_conn = value
-                    case 'amp;prb_id':
-                        probe_id = value
-            
-            #id = websocket.args.get('id')
-            #user = websocket.args.get('unm')
-            #probe_conn = websocket.args.get('prb')
-            #probe_id = websocket.args.get('prb_id')
+            if websocket.args.get('unm') is not None:
+                user = websocket.args.get('unm')
+
+            if websocket.args.get('prb') is not None:
+                probe_conn = websocket.args.get('prb')
+
+            if websocket.args.get('prb_id') is not None:
+                probe_id = websocket.args.get('prb_id')
 
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
@@ -551,7 +552,7 @@ async def ws():
             # Rate limiter for websocket connections using user jwt tokens
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
 
-                if not user:
+                if user is None:
                     await ip_blocker(auto_ban=True)
                     await websocket.accept()    
                     await websocket.close(1010, 'Error occurred')

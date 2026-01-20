@@ -523,7 +523,7 @@ async def check_ip():
 @rate_exempt
 async def ws():
     try:
-        if websocket.args is not None and websocket.cookies is not None:
+        if websocket.args.get('unm') is not None and websocket.cookies.get("access_token") is not None:
             logger.info(websocket.args)
             """
             for key, value in websocket.args.items():

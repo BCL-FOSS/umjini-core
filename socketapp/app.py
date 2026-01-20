@@ -1,5 +1,5 @@
 from init_app import (app)
-from quart import (websocket, render_template_string, make_response)
+from quart import (Request, Websocket, websocket, render_template_string, make_response)
 import asyncio
 from utils.broker import Broker
 from quart import jsonify
@@ -102,34 +102,31 @@ def round_up_to_30sec(dt: datetime) -> datetime:
     res = base + timedelta(seconds=add_seconds)
     return res.replace(microsecond=0)
 
-async def ip_blocker(auto_ban: bool = False):
+async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False):
     if auto_ban is True:
-        logger.info(f"Auto banning IP: {request.access_route[-1]}")
+        logger.info(f"Auto banning IP: {conn_obj.access_route[-1]}")
         await ip_ban_db.connect_db()
         now = datetime.now(tz=timezone.utc)
-        ban_data = {'ip': request.access_route[-1],
+        ban_data = {'ip': conn_obj.access_route[-1],
                     'banned_at': now.isoformat()}
-        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
-            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
-            auth_attempts.pop(request.access_route[-1], None)
-            abort(403) 
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{conn_obj.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {conn_obj.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(conn_obj.access_route[-1], None) 
 
-    if request.access_route[-1] not in auth_attempts:
-        auth_attempts[request.access_route[-1]] = 1
+    if conn_obj.access_route[-1] not in auth_attempts:
+        auth_attempts[conn_obj.access_route[-1]] = 1
 
-    if auth_attempts[request.access_route[-1]] != max_auth_attempts:
-        auth_attempts[request.access_route[-1]] += 1
-        await flash(message=f'Try again...', category='danger')
-        return jsonify(error="Unauthorized"), 401
+    if auth_attempts[conn_obj.access_route[-1]] != max_auth_attempts:
+        auth_attempts[conn_obj.access_route[-1]] += 1
+        
     else:
         await ip_ban_db.connect_db()
         now = datetime.now(tz=timezone.utc)
-        ban_data = {'ip': request.access_route[-1],
+        ban_data = {'ip': conn_obj.access_route[-1],
                     'banned_at': now.isoformat()}
-        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{request.access_route[-1]}", data=ban_data) > 0:
-            logger.warning(f"Max authentication attempts reached for {request.access_route[-1]}. Blocking further attempts.")
-            auth_attempts.pop(request.access_route[-1], None)
-            abort(403) 
+        if await ip_ban_db.upload_db_data(id=f"blocked_ip:{conn_obj.access_route[-1]}", data=ban_data) > 0:
+            logger.warning(f"Max authentication attempts reached for {conn_obj.access_route[-1]}. Blocking further attempts.")
+            auth_attempts.pop(conn_obj.access_route[-1], None)
 
 async def require_bearer_token():
     auth_header = request.headers.get("Authorization")
@@ -431,9 +428,6 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                     # Remove user session profile from sess redis db/automatically invalidates active JWT tokens   
                     cur_usr_id = sess_id
                     await cl_sess_db.connect_db()
-                    if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
-                        await ip_blocker()
-                        return Unauthorized()
                             
                     result = await cl_sess_db.del_obj(key=cur_usr_id)
                     logger.info(f"Session {sess_id} data removal result: {result}")
@@ -474,8 +468,6 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 cur_usr_id = sess_id
 
                 await cl_sess_db.connect_db()
-                if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
-                    return Unauthorized()
                             
                 result = await cl_sess_db.del_obj(key=cur_usr_id)
                 logger.info(f"Session {sess_id} data removal result: {result}")
@@ -488,7 +480,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 return resp
             if PROBE is True:
                 connected_probes.pop(sess_id)
-                return
+                
         except Exception as e:
             logger.exception(f"Error in session_watchdog for {sess_id}: {e}")
             if USER is True:
@@ -496,8 +488,6 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 cur_usr_id = sess_id
 
                 await cl_sess_db.connect_db()
-                if await cl_sess_db.get_all_data(match=f'{cur_usr_id}', cnfrm=True) is False:
-                    return Unauthorized()
                             
                 result = await cl_sess_db.del_obj(key=cur_usr_id)
                 logger.info(f"Session {sess_id} data removal result: {result}")
@@ -510,14 +500,24 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 return resp
             if PROBE is True:
                 connected_probes.pop(sess_id)
-                return
 
 @app.before_request
 async def check_ip():
     await ip_ban_db.connect_db()
 
     if await ip_ban_db.get_all_data(match=f"blocked_ip:{request.access_route[-1]}", cnfrm=True) is True:
-        abort(403)
+        abort(401)
+
+@app.before_websocket
+async def check_ip_ws():
+    await ip_ban_db.connect_db()
+
+    if await ip_ban_db.get_all_data(match=f"blocked_ip:{websocket.access_route[-1]}", cnfrm=True) is True:
+        try:
+            await websocket.close(3000)
+        except RuntimeError:
+            return
+        
     
 @app.websocket("/ws")
 @rate_exempt
@@ -538,6 +538,7 @@ async def ws():
             
             if websocket.args.get('amp;unm') is not None:
                 user = websocket.args.get('unm')
+                logger.info(f'connecting user: {user}')
 
             if websocket.args.get('prb') is not None:
                 probe_conn = websocket.args.get('prb')
@@ -554,10 +555,8 @@ async def ws():
             # Rate limiter for websocket connections using user jwt tokens
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
 
-                if user is None:
-                    await ip_blocker()
-                    await websocket.accept()    
-                    await websocket.close(1010, 'Error occurred')
+                if isinstance(user, str) is False:
+                    raise Exception()
                     
                 await cl_auth_db.connect_db()
                 await cl_sess_db.connect_db()
@@ -568,9 +567,9 @@ async def ws():
                             
                         account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
                         if account_data is None:
-                            await ip_blocker()
-                            await websocket.accept()
-                            await websocket.close(1000)
+                            await ip_blocker(conn_obj=websocket)
+                            raise Exception()
+                          
                         else:
                             logger.info(account_data)
                             sub_dict = next(iter(account_data.values()))
@@ -582,9 +581,7 @@ async def ws():
                         logger.info(decoded_token)
 
                         if decoded_token.get('rand') != sub_dict.get('usr_rand'):
-                            await ip_blocker()
-                            await websocket.accept()
-                            await websocket.close(1010, 'Error occurred')
+                            raise InvalidTokenError()
 
                 if probe_conn is not None:
 
@@ -596,7 +593,8 @@ async def ws():
                         api_data = await cl_data_db.get_all_data(match=f"api_dta:{user_data_dict.get('db_id')}")
 
                         if api_data is None:
-                            return jsonify(error="Error occurred"), 404
+                            await ip_blocker(conn_obj=websocket)
+                            raise Exception()
                             
                         api_data_dict = next(iter(api_data.values()))
                         logger.info(api_data_dict)
@@ -606,9 +604,7 @@ async def ws():
                         decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
 
                         if decoded_token.get('rand') != api_rand:
-                            await ip_blocker()
-                            await websocket.accept()
-                            await websocket.close(1010, 'Error occurred')
+                            raise InvalidTokenError()
                         
                 logger.info('websocket authentication successful')
 
@@ -641,57 +637,33 @@ async def ws():
                 async for message in broker.subscribe():
                     await websocket.send(message)
             else:
-                await websocket.accept()
-                await websocket.close(1010, "Stream rate limit exceeded...")
+                raise Exception()
         else:
-           await ip_blocker()
-           await websocket.accept()
-           await websocket.close(1010, "Error occurred...")
+           await ip_blocker(conn_obj=websocket, auto_ban=True)
+           raise Exception()
     except Exception as e:
-        if recv_task and monitor_task:
-            recv_task.cancel()
-            monitor_task.cancel()
-            await recv_task
-            await monitor_task
-        await websocket.accept()
-        await websocket.close(1000)
-        raise e
+        logger.error(e)
     except asyncio.CancelledError:
-        if recv_task and monitor_task:
-            recv_task.cancel()
-            monitor_task.cancel()
-            await recv_task
-            await monitor_task
-        await websocket.accept()
-        await websocket.close(1000)
-        raise Exception(asyncio.CancelledError)
+        logger.error(asyncio.CancelledError)
     except ExpiredSignatureError:
-        if recv_task and monitor_task:
-            recv_task.cancel()
-            monitor_task.cancel()
-            await recv_task
-            await monitor_task
         logger.warning("JWT expired, need to refresh token")
-        await ip_blocker()
-        await websocket.accept()
-        await websocket.close(1008, 'Token expired')
+        await ip_blocker(conn_obj=websocket)
+        logger.error(ExpiredSignatureError)
     except InvalidTokenError as e:
-        if recv_task and monitor_task:
-            recv_task.cancel()
-            monitor_task.cancel()
-            await recv_task
-            await monitor_task
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker()
-        await websocket.accept()
-        await websocket.close(1000, 'Invalid token')
+        await ip_blocker(conn_obj=websocket)
+        logger.error(InvalidTokenError)
     finally:
-        if recv_task and monitor_task:
-            recv_task.cancel()
-            monitor_task.cancel()
-            await recv_task
-            await monitor_task
-        await websocket.accept()
+        for t in (recv_task, monitor_task):
+            if t:
+                t.cancel()
+                try:
+                    await t
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("Task await failed")
+
         await websocket.close(1000)
 
 @app.route('/init', methods=['GET'])

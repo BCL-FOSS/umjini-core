@@ -186,7 +186,7 @@ async def login():
             sub_dict["usr_jwt_secret"] = usr_jwt_secret
             logger.info(sub_dict)
 
-            # Generate user JWT to authenticate initial agent websocket connection
+            # Generate user JWT to authenticate socket connection
             usr_jwt_token = util_obj.generate_ephemeral_token(user_id=session_id, secret_key=usr_jwt_secret, user_rand=usr_rand)
                         
             if await cl_sess_db.upload_db_data(id=session_id, data=sub_dict) > 0:

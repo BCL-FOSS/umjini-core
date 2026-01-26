@@ -342,6 +342,9 @@ async def _receive() -> None:
 
                             logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
 
+                    else:
+                        pass
+
                 case 'heart_beat':
                     logger.debug(f"Received probe {message['sess_id']} heartbeat: {message}")
 
@@ -360,6 +363,9 @@ async def _receive() -> None:
                             connected_probes[message["sess_id"]] = entry
 
                             logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
+
+                    else:
+                        pass
 
                 case "prb_act_rslt":
                     match message['act_rslt_type']:
@@ -441,7 +447,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                     return resp
                     
                 if PROBE is True:
-                    logger.info('Probe is either offline or a network outage has occurred.')
+                    logger.info(f'Probe {sess_id} is either offline or a network outage has occurred.')
                     connected_probes.pop(sess_id)
                     probe_data = await cl_data_db.get_all_data(match=f"*{sess_id}*")
                     probe_data_dict = next(iter(probe_data.values()))
@@ -480,6 +486,8 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 return resp
             if PROBE is True:
                 connected_probes.pop(sess_id)
+
+            raise asyncio.CancelledError()
                 
         except Exception as e:
             logger.exception(f"Error in session_watchdog for {sess_id}: {e}")
@@ -501,6 +509,8 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
             if PROBE is True:
                 connected_probes.pop(sess_id)
 
+            raise Exception()
+
 @app.before_request
 async def check_ip():
     await ip_ban_db.connect_db()
@@ -516,7 +526,7 @@ async def check_ip_ws():
         try:
             await websocket.close(3000)
         except RuntimeError:
-            return
+            return None
         
     
 @app.websocket("/ws")
@@ -1209,7 +1219,7 @@ async def createapi():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
 
         api_id = util_obj.key_gen(size=10)
@@ -1259,29 +1269,43 @@ async def createapi():
 
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
+        await ip_blocker(conn_obj=request)
         return ExpiredSignatureError()
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
+        await ip_blocker(conn_obj=request)
         return InvalidTokenError()
+    except Exception:
+        return jsonify("Error, occurred"), 400
     
+@app.errorhandler(Unauthorized)
+async def unauthorized():
+    await ip_blocker(conn_obj=request, auto_ban=True)
+    return await render_template_string(json.dumps({"error": "Authentication error"})), 401
+
 @app.errorhandler(ExpiredSignatureError)
 async def token_expired():
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Token expired"})), 1008
 
 @app.errorhandler(InvalidTokenError)
 async def invalid_token():
+    await ip_blocker(conn_obj=request, auto_ban=True)
     return await render_template_string(json.dumps({"error": "Invalid token"})), 1000
 
 @app.errorhandler(400)
 async def bad_request():
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Bad Request"})), 400
 
 @app.errorhandler(401)
 async def need_to_login():
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Authentication error"})), 401
     
 @app.errorhandler(404)
 async def page_not_found():
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Resource not found"})), 404
 
 @app.errorhandler(500)

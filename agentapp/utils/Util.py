@@ -82,7 +82,7 @@ class Util:
             'iss': 'https://baughcl.com/',
             'id': user_id,
             'rand': user_rand,
-            'exp': now + timedelta(hours=3),
+            'exp': now + timedelta(hours=8),
         }
 
         encoded_jwt = jwt.encode(payload=payload, key=secret_key, algorithm="HS256")

@@ -207,9 +207,9 @@
           credentials:"same-origin"
         });
 
-        if (resp.ok) {
+        if (resp.status === 200) {
           alert("API key has been created successfully. Retrieve via OTP link sent to your registered email.");
-          location.reload();
+          // location.reload();
         } else {
           alert("Failed to create API key. Please try again.");
         }
@@ -233,9 +233,9 @@
           credentials:"same-origin"
         });
 
-        if (resp.ok) {
+        if (resp.status === 200) {
           alert("API key has been reset successfully.");
-          location.reload();
+          // location.reload();
         } else {
           alert("Failed to reset API key. Please try again.");
         }

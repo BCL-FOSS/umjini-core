@@ -128,17 +128,6 @@ async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False):
             logger.warning(f"Max authentication attempts reached for {conn_obj.access_route[-1]}. Blocking further attempts.")
             auth_attempts.pop(conn_obj.access_route[-1], None)
 
-async def require_bearer_token():
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        await ip_blocker()
-        raise Unauthorized("Missing or invalid Authorization header")
-
-    token = auth_header.removeprefix("Bearer ").strip()
-
-    return token
-
 async def _receive() -> None:
     while True:
         message = await websocket.receive()
@@ -323,7 +312,7 @@ async def _receive() -> None:
                     await cl_sess_db.connect_db()
 
                     if await cl_sess_db.get_all_data(match=f'{message["sess_id"]}', cnfrm=True) is False:
-                        await ip_blocker()  # Session does not exist, ignore ping
+                        pass  # Session does not exist, ignore ping
                     
                     global auth_ping_counter
                     
@@ -883,7 +872,7 @@ async def flowrun():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
@@ -1010,7 +999,7 @@ async def flowsave():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return jsonify(error="Missing required request data"), 400
 
     await cl_auth_db.connect_db()
@@ -1019,7 +1008,7 @@ async def flowsave():
     try:
 
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -1041,7 +1030,7 @@ async def flowsave():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
 
         data = await request.get_json()
@@ -1071,7 +1060,7 @@ async def flowload():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return jsonify(error="Missing required request data"), 400
     
     await cl_auth_db.connect_db()
@@ -1079,7 +1068,7 @@ async def flowload():
 
     try:
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -1101,7 +1090,7 @@ async def flowload():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
             
         data = await request.get_json()
@@ -1132,14 +1121,14 @@ async def resetapi():
     sess_id = request.args.get('sess_id')
 
     if not jwt_token or not sess_id:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return jsonify(error="Missing required request data"), 400
     
     await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
 
     if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return Unauthorized()
     
     try:
@@ -1154,7 +1143,7 @@ async def resetapi():
         logger.info(decoded_token)
 
         if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
-            await ip_blocker()
+            await ip_blocker(conn_obj=request)
             return Unauthorized()
         
         if await cl_data_db.del_obj(key=f"api_dta:{usr_data_dict['db_id']}") is not None:
@@ -1206,14 +1195,14 @@ async def createapi():
     sess_id = request.args.get('sess_id')
 
     if not jwt_token or not sess_id:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return jsonify(error="Missing required request data"), 400
 
     await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
 
     if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
-        await ip_blocker()
+        await ip_blocker(conn_obj=request)
         return Unauthorized()
 
     try:

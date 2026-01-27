@@ -618,7 +618,7 @@ async def ws():
                 logger.info('websocket authentication successful')
                 await websocket.accept()
 
-                if id is not None and not auth_ping_counter[id]:
+                if not auth_ping_counter[id]:
                     # Initialize a session expiry entry for this connection so that a missing ping
                     # during the first 5 minutes will still expire the session.
                     now = datetime.now(tz=timezone.utc)

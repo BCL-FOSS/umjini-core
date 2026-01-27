@@ -618,7 +618,7 @@ async def ws():
                 logger.info('websocket authentication successful')
                 await websocket.accept()
 
-                if not auth_ping_counter[id]:
+                if id and (id not in auth_ping_counter):
                     # Initialize a session expiry entry for this connection so that a missing ping
                     # during the first 5 minutes will still expire the session.
                     now = datetime.now(tz=timezone.utc)
@@ -632,7 +632,7 @@ async def ws():
 
                     monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
-                if probe_id is not None and not connected_probes[probe_id]:
+                if probe_id and (probe_id not in connected_probes):
                     now = datetime.now(tz=timezone.utc)
                     connected_probes[probe_id] = {'conn_start': now,
                                                   'id': probe_id,

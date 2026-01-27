@@ -664,14 +664,12 @@ async def ws():
         await ip_blocker(conn_obj=websocket)
         logger.error(InvalidTokenError)
     finally:
-        for t in (recv_task, monitor_task):
-            if t:
-                t.cancel()
-                try:
-                    await t
-                except asyncio.CancelledError:
+        try:
+            await recv_task.cancel()
+            await monitor_task.cancel()
+        except asyncio.CancelledError:
                     pass
-                except Exception:
+        except Exception:
                     logger.exception("Task await failed")
 
         await websocket.close(1000)

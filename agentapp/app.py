@@ -415,15 +415,9 @@ async def agent(cmp_id, obsc):
 
     probe_data = await cl_data_db.get_all_data(match=f"prb:*")
 
-    """
-    mcp_urls = []
-    if probe_data is not None:
-        for k,v in probe_data.items():
-            mcp_urls.append(f"{v['url']}/llm/mcp")
+    if probe_data is None:
+        probe_data = {"":""}
 
-    logger.info(mcp_urls)
-    
-    """
     return await render_template("app/agent.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=cl_sess_data_dict.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, data=data)
 
 @app.route('/settings', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])

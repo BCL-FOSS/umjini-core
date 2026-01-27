@@ -644,8 +644,15 @@ async def ws():
 
                     monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
 
-                async for message in broker.subscribe():
-                    await websocket.send(message)
+                try:
+                    async for message in broker.subscribe():
+                        await websocket.send(message)
+                except asyncio.CancelledError:
+                    # Connection was closed, exit loop to cleanup normally
+                    logger.debug("Subscribe loop cancelled (client disconnected)")
+                except Exception as e:
+                    logger.exception("Error while reading from broker or sending websocket message")
+                    raise
             else:
                 raise Exception()
         else:
@@ -664,15 +671,30 @@ async def ws():
         await ip_blocker(conn_obj=websocket)
         logger.error(InvalidTokenError)
     finally:
+        # Cancel background tasks if they were created
         try:
-            await recv_task.cancel()
-            await monitor_task.cancel()
-        except asyncio.CancelledError:
-            pass
+            if recv_task is not None:
+                recv_task.cancel()
+                try:
+                    await recv_task
+                except asyncio.CancelledError:
+                    pass
+
+            if monitor_task is not None:
+                monitor_task.cancel()
+                try:
+                    await monitor_task
+                except asyncio.CancelledError:
+                    pass
         except Exception:
             logger.exception("Task await failed")
 
-        await websocket.close(1000)
+        # Close websocket but ignore if client already disconnected
+        try:
+            await websocket.close(1000)
+        except Exception as exc:
+            # wsproto may raise ClientDisconnected or RuntimeError if already closed
+            logger.debug(f"Ignoring websocket close error: {exc}")
 
 @app.route('/init', methods=['GET'])
 async def init():

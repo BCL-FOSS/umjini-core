@@ -668,9 +668,9 @@ async def ws():
             await recv_task.cancel()
             await monitor_task.cancel()
         except asyncio.CancelledError:
-                    pass
+            pass
         except Exception:
-                    logger.exception("Task await failed")
+            logger.exception("Task await failed")
 
         await websocket.close(1000)
 
@@ -682,7 +682,7 @@ async def init():
     try:
 
         if not api_key or not usr:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
                 
         await cl_auth_db.connect_db()
@@ -690,7 +690,7 @@ async def init():
         await cl_sess_db.connect_db()
 
         if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -707,7 +707,7 @@ async def init():
         logger.info(api_data_dict)
     
         if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
@@ -743,7 +743,7 @@ async def enroll():
     jwt_token = request.cookies.get('access_token')
 
     if not api_key or not usr or not jwt_token:
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     
     if not site:
@@ -755,7 +755,7 @@ async def enroll():
     try:
 
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -766,7 +766,7 @@ async def enroll():
         api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
         if api_data is None:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
             
         api_data_dict = next(iter(api_data.values()))
@@ -794,11 +794,11 @@ async def enroll():
         
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except Exception as e:
         return jsonify({f'error occurred: {e}'})
@@ -809,7 +809,7 @@ async def delete():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
         
     await cl_auth_db.connect_db()
@@ -817,7 +817,7 @@ async def delete():
 
     try:
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -828,7 +828,7 @@ async def delete():
         api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
         if api_data is None:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
             
         api_data_dict = next(iter(api_data.values()))
@@ -857,11 +857,11 @@ async def delete():
 
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except Exception as e:
         return jsonify({f'error occurred: {e}'})
@@ -880,7 +880,7 @@ async def flowrun():
 
     try:
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -891,7 +891,7 @@ async def flowrun():
         api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
 
         if api_data is None:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
             
         api_data_dict = next(iter(api_data.values()))
@@ -921,11 +921,11 @@ async def flowrun():
 
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except Exception as e:
         return jsonify({f'error occurred: {e}'})
@@ -936,7 +936,7 @@ async def flowdelete():
     usr = request.args.get('usr')
 
     if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     
     await cl_auth_db.connect_db()
@@ -944,7 +944,7 @@ async def flowdelete():
 
     try:
         if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request, auto_ban=True)
+            await ip_blocker(conn_obj=request)
             abort(401)
         
         usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
@@ -984,11 +984,11 @@ async def flowdelete():
             
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request, auto_ban=True)
+        await ip_blocker(conn_obj=request)
         abort(401)
     except Exception as e:
         return jsonify({f'error occurred: {e}'})
@@ -1278,7 +1278,7 @@ async def createapi():
     
 @app.errorhandler(Unauthorized)
 async def unauthorized():
-    await ip_blocker(conn_obj=request, auto_ban=True)
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Authentication error"})), 401
 
 @app.errorhandler(ExpiredSignatureError)
@@ -1288,7 +1288,7 @@ async def token_expired():
 
 @app.errorhandler(InvalidTokenError)
 async def invalid_token():
-    await ip_blocker(conn_obj=request, auto_ban=True)
+    await ip_blocker(conn_obj=request)
     return await render_template_string(json.dumps({"error": "Invalid token"})), 1000
 
 @app.errorhandler(400)

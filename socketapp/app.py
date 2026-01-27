@@ -472,18 +472,10 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
             if USER is True:
                 auth_ping_counter.pop(sess_id)
                 cur_usr_id = sess_id
-
                 await cl_sess_db.connect_db()
-                            
                 result = await cl_sess_db.del_obj(key=cur_usr_id)
                 logger.info(f"Session {sess_id} data removal result: {result}")
 
-                resp = jsonify({"Session": "Logged out as user ended session"})
-                resp.delete_cookie("access_token")
-                resp.delete_cookie("api_access_token")
-
-                logger.info(f"User session {sess_id} logged out due to session end")
-                return resp
             if PROBE is True:
                 connected_probes.pop(sess_id)
 
@@ -494,18 +486,10 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
             if USER is True:
                 auth_ping_counter.pop(sess_id)
                 cur_usr_id = sess_id
-
                 await cl_sess_db.connect_db()
-                            
                 result = await cl_sess_db.del_obj(key=cur_usr_id)
                 logger.info(f"Session {sess_id} data removal result: {result}")
 
-                resp = jsonify({"Session": "Logged out as user ended session"})
-                resp.delete_cookie("access_token")
-                resp.delete_cookie("api_access_token")
-
-                logger.info(f"User session {sess_id} logged out due to session end")
-                return resp
             if PROBE is True:
                 connected_probes.pop(sess_id)
 
@@ -542,6 +526,7 @@ async def ws():
             probe_id = None
             recv_task = None
             monitor_task = None
+            user_sign_out_resp = None
 
             if websocket.args.get('id') is not None:
                 id = websocket.args.get('id')
@@ -662,6 +647,10 @@ async def ws():
         logger.error(e)
     except asyncio.CancelledError:
         logger.error(asyncio.CancelledError)
+        user_sign_out_resp = jsonify({"Session": "Logged out as user ended session"})
+        user_sign_out_resp.delete_cookie("access_token")
+        user_sign_out_resp.delete_cookie("api_access_token")
+
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
         await ip_blocker(conn_obj=websocket)
@@ -671,6 +660,7 @@ async def ws():
         await ip_blocker(conn_obj=websocket)
         logger.error(InvalidTokenError)
     finally:
+        
         # Cancel background tasks if they were created
         try:
             if recv_task is not None:
@@ -695,6 +685,9 @@ async def ws():
         except Exception as exc:
             # wsproto may raise ClientDisconnected or RuntimeError if already closed
             logger.debug(f"Ignoring websocket close error: {exc}")
+
+        if user_sign_out_resp:
+            return user_sign_out_resp
 
 @app.route('/init', methods=['GET'])
 async def init():

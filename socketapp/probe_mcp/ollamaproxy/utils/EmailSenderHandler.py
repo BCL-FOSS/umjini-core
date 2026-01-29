@@ -82,8 +82,12 @@ class EmailSenderHandler:
 
         try:
             api_response = api_instance.send_transac_email(send_smtp_email)
-            self.logger.info(f"Transactional email sent successfully: {api_response}")
-            return api_response
+            if api_response['message_id']:
+                self.logger.info(f"Transactional email sent successfully: {api_response}")
+                return api_response
+            else:
+                self.logger.error('Transactional email failed.')
+                return None
         except ApiException as e:
             self.logger.exception(f"Exception when sending transactional email: {e}")
             return None

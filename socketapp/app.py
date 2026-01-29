@@ -476,6 +476,7 @@ async def check_ip_ws():
 
     if await ip_ban_db.get_all_data(match=f"blocked_ip:{websocket.access_route[-1]}", cnfrm=True) is True:
         try:
+            await websocket.accept()
             await websocket.close(3000)
         except RuntimeError:
             return None

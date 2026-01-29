@@ -1232,9 +1232,10 @@ async def createapi():
 
             api_email_sent = ast.literal_eval(send_result)
 
-            logger.info(api_email_sent['id'])
+            logger.info(f"email api sent message id: {api_email_sent['message_id']}")
 
-            if int(api_email_sent['id']) > 0:
+            if api_email_sent['message_id']:
+                logger.info('API key creation successful. Check your email for the new API key.')
                 return jsonify('API key creation successful. Check your email for the new API key.')        
         else:
             return jsonify('API key creation failed'), 400

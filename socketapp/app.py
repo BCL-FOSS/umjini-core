@@ -585,6 +585,11 @@ async def ws():
 
                     monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
+                if id and (id in auth_ping_counter):
+                    recv_task = asyncio.ensure_future(_receive())
+
+                    monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+
                 if probe_id and (probe_id not in connected_probes):
                     now = datetime.now(tz=timezone.utc)
                     connected_probes[probe_id] = {'conn_start': now,
@@ -593,6 +598,11 @@ async def ws():
                                                   }
                     logger.debug(f"Initialized ping expiry for session {probe_id} -> {connected_probes[probe_id]['exp']}")
 
+                    recv_task = asyncio.ensure_future(_receive())
+
+                    monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
+
+                if probe_id and (probe_id in connected_probes):
                     recv_task = asyncio.ensure_future(_receive())
 
                     monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))

@@ -1153,10 +1153,14 @@ async def resetapi():
         
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
+        await ip_blocker(conn_obj=request)
         return ExpiredSignatureError()
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
+        await ip_blocker(conn_obj=request)
         return InvalidTokenError()
+    except Exception:
+        return jsonify("Error, occurred"), 400
     
 @app.route('/createapi', methods=['POST'])
 async def createapi():

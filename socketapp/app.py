@@ -410,7 +410,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 now_quant = round_down_to_30sec(now)
                 exp_quant = round_up_to_30sec(exp)
 
-            logger.debug(f"Session {sess_id} now_quant={now_quant} exp_quant={exp_quant} (raw now={now} raw exp={exp})")
+            #logger.debug(f"Session {sess_id} now_quant={now_quant} exp_quant={exp_quant} (raw now={now} raw exp={exp})")
 
             # Expiration occurred
             if now_quant > exp_quant:

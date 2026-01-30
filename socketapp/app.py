@@ -582,12 +582,12 @@ async def ws():
                     
                     asyncio.ensure_future(_receive())
 
-                    monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+                    #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
                 if id and (id in auth_ping_counter):
                     asyncio.ensure_future(_receive())
 
-                    monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
+                    #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
                 if probe_id and (probe_id not in connected_probes):
                     now = datetime.now(tz=timezone.utc)
@@ -612,9 +612,10 @@ async def ws():
                 except asyncio.CancelledError:
                     # Connection was closed, exit loop to cleanup normally
                     logger.debug("Subscribe loop cancelled (client disconnected)")
+                    pass
                 except Exception as e:
                     logger.exception("Error while reading from broker or sending websocket message")
-                    raise
+                    pass
             else:
                 raise Exception()
         else:
@@ -641,7 +642,7 @@ async def ws():
                 logger.error(f"Error cancelling monitor task: {e}")
                 pass
         try:
-            await websocket.close()
+            await websocket.close(code=1008)
         except RuntimeError:
             logger.info("Websocket already closed")
             pass

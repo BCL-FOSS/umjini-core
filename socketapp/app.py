@@ -454,7 +454,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 # Not yet expired: sleep until the sooner of check_interval or time to expiry (based on quantized values)
                 seconds_to_expiry = (exp_quant - now_quant).total_seconds()
                 sleep_for = min(check_interval, max(seconds_to_expiry, 0))
-                logger.debug(f"Session {sess_id} not yet expired (expires at {exp_quant}), sleeping for {sleep_for} seconds")
+                #logger.debug(f"Session {sess_id} not yet expired (expires at {exp_quant}), sleeping for {sleep_for} seconds")
                 await asyncio.sleep(sleep_for)
                     
         except asyncio.CancelledError:

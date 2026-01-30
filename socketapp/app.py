@@ -458,7 +458,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                     
         except asyncio.CancelledError:
             logger.info(f"Session watchdog for {sess_id} cancelled")
-            raise
+            return
                 
         except Exception as e:
             logger.exception(f"Error in session_watchdog for {sess_id}: {e}")

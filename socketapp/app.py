@@ -640,6 +640,7 @@ async def ws():
         try:
             await websocket.close()
         except RuntimeError:
+            logger.info("Websocket already closed")
             pass
 
 @app.route('/init', methods=['GET'])

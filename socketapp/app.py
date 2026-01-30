@@ -641,11 +641,6 @@ async def ws():
             except Exception as e:
                 logger.error(f"Error cancelling monitor task: {e}")
                 pass
-        try:
-            await websocket.close(code=1008)
-        except RuntimeError:
-            logger.info("Websocket already closed")
-            pass
 
 @app.route('/init', methods=['GET'])
 async def init():

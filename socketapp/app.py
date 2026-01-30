@@ -448,6 +448,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                             'timestamp': datetime.now(tz=timezone.utc)}
 
                     await broker.publish(message=json.dumps(probe_outage_data))
+                    break
 
             else:
                 # Not yet expired: sleep until the sooner of check_interval or time to expiry (based on quantized values)
@@ -458,7 +459,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                     
         except asyncio.CancelledError:
             logger.info(f"Session watchdog for {sess_id} cancelled")
-            return
+            break
                 
         except Exception as e:
             logger.exception(f"Error in session_watchdog for {sess_id}: {e}")

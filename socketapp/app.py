@@ -45,6 +45,7 @@ ws_rate_limiter = WSRateLimiter(redis_host=os.environ.get('RATE_LIMIT_DB'),
                                 redis_port=os.environ.get('RATE_LIMIT_DB_PORT'))
 
 broker = Broker()
+probe_broker = Broker()
 util_obj=Util()
 api_name = 'umj-api-wflw'
 auth_ping_counter = {}
@@ -481,6 +482,67 @@ async def check_ip_ws():
         except RuntimeError:
             return None
         
+@app.websocket.route("/heartbeat")
+@rate_exempt
+async def heartbeat():
+    try:
+        probe_id = None
+        monitor_task = None
+
+        if websocket.args.get('prb_id') is not None:
+            probe_id = websocket.args.get('prb_id')
+
+        if probe_id and (probe_id not in connected_probes):
+            now = datetime.now(tz=timezone.utc)
+            connected_probes[probe_id] = {'conn_start': now,
+                                        'id': probe_id,
+                                        "exp": round_up_to_30sec(now + timedelta(seconds=30)),
+                                        }
+            logger.debug(f"Initialized ping expiry for session {probe_id} -> {connected_probes[probe_id]['exp']}")
+
+            asyncio.ensure_future(_receive())
+
+            monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
+
+        if probe_id and (probe_id in connected_probes):
+            asyncio.ensure_future(_receive())
+            monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
+
+        await websocket.accept()
+
+        try:
+            async for message in probe_broker.subscribe():
+                await websocket.send(message)
+        except asyncio.CancelledError:
+        # Connection was closed, exit loop to cleanup normally
+            logger.debug("Subscribe loop cancelled (client disconnected)")
+            pass
+        except Exception as e:
+            logger.exception("Error while reading from broker or sending websocket message")
+            pass
+
+    except Exception as e:
+        logger.error(e)
+    except asyncio.CancelledError as e:
+        logger.error(e)
+    except ExpiredSignatureError:
+        logger.warning("JWT expired, need to refresh token")
+        await ip_blocker(conn_obj=websocket)
+        logger.error(ExpiredSignatureError)
+    except InvalidTokenError as e:
+        logger.error(f"JWT invalid: {e}")
+        await ip_blocker(conn_obj=websocket)
+        logger.error(InvalidTokenError)
+    finally:
+        if monitor_task:
+            try:
+                monitor_task.cancel()
+                await monitor_task
+            except Exception as e:
+                logger.error(f"Error cancelling monitor task: {e}")
+                pass
+    
+        
 @app.websocket("/ws")
 @rate_exempt
 async def ws():
@@ -514,110 +576,94 @@ async def ws():
             client_connection = jwt_token
 
             # Rate limiter for websocket connections using user jwt tokens
-            #if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
+            if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is True:
 
-            if isinstance(user, str) is False:
-                raise Exception()
-                    
-            await cl_auth_db.connect_db()
-            await cl_sess_db.connect_db()
+                if isinstance(user, str) is False:
+                    raise Exception()
+                        
+                await cl_auth_db.connect_db()
+                await cl_sess_db.connect_db()
 
-            if id is not None:
-                if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
+                if id is not None:
+                    if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
+                                
+                        account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
+                        if account_data is None:
+                            await ip_blocker(conn_obj=websocket)
+                            raise Exception()
                             
-                    account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
-                    if account_data is None:
-                        await ip_blocker(conn_obj=websocket)
-                        raise Exception()
-                          
-                    else:
-                        logger.info(account_data)
-                        sub_dict = next(iter(account_data.values()))
-                        logger.info(sub_dict)
+                        else:
+                            logger.info(account_data)
+                            sub_dict = next(iter(account_data.values()))
+                            logger.info(sub_dict)
 
-                    jwt_key = sub_dict.get('usr_jwt_secret')
-                    logger.info(jwt_key)
-                    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-                    logger.info(decoded_token)
+                        jwt_key = sub_dict.get('usr_jwt_secret')
+                        logger.info(jwt_key)
+                        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+                        logger.info(decoded_token)
 
-                    if decoded_token.get('rand') != sub_dict.get('usr_rand'):
-                        raise InvalidTokenError()
-
-            if probe_conn is not None:
-
-                if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) is True:
-                    user_data = await cl_auth_db.get_all_data(match=f'*uid:{user}*')
-                    user_data_dict = next(iter(user_data.values()))
-                    logger.info(user_data_dict.get('db_id'))
-
-                    api_data = await cl_data_db.get_all_data(match=f"api_dta:{user_data_dict.get('db_id')}")
-
-                    if api_data is None:
-                        await ip_blocker(conn_obj=websocket)
-                        raise Exception()
-                        
-                    api_data_dict = next(iter(api_data.values()))
-                    logger.info(api_data_dict)
-
-                    """
-                        api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-                        api_rand = api_data_dict.get(f'{api_name}_rand')
-                        decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
-
-                        if decoded_token.get('rand') != api_rand:
-                            logger.error(f"Probe JWT rand does not match stored api_rand\n\nToken: {decoded_token}\n\nStored api_rand: {api_rand}")
+                        if decoded_token.get('rand') != sub_dict.get('usr_rand'):
                             raise InvalidTokenError()
-                        
+
+                if probe_conn is not None:
+
+                    if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) is True:
+                        user_data = await cl_auth_db.get_all_data(match=f'*uid:{user}*')
+                        user_data_dict = next(iter(user_data.values()))
+                        logger.info(user_data_dict.get('db_id'))
+
+                        api_data = await cl_data_db.get_all_data(match=f"api_dta:{user_data_dict.get('db_id')}")
+
+                        if api_data is None:
+                            await ip_blocker(conn_obj=websocket)
+                            raise Exception()
+                            
+                        api_data_dict = next(iter(api_data.values()))
+                        logger.info(api_data_dict)
+
                         """
+                            api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+                            api_rand = api_data_dict.get(f'{api_name}_rand')
+                            decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
+
+                            if decoded_token.get('rand') != api_rand:
+                                logger.error(f"Probe JWT rand does not match stored api_rand\n\nToken: {decoded_token}\n\nStored api_rand: {api_rand}")
+                                raise InvalidTokenError()
+                            
+                            """
+                            
+                logger.info('websocket authentication successful')
+                await websocket.accept()
+
+                if id and (id not in auth_ping_counter):
+                        # Initialize a session expiry entry for this connection so that a missing ping
+                        # during the first 5 minutes will still expire the session.
+                    now = datetime.now(tz=timezone.utc)
+                    auth_ping_counter[id] = {
+                                    "sess_id": id,
+                                    "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
+                            }
+                    logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
                         
-            logger.info('websocket authentication successful')
-            await websocket.accept()
-
-            if id and (id not in auth_ping_counter):
-                    # Initialize a session expiry entry for this connection so that a missing ping
-                    # during the first 5 minutes will still expire the session.
-                now = datetime.now(tz=timezone.utc)
-                auth_ping_counter[id] = {
-                                "sess_id": id,
-                                "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
-                        }
-                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
-                    
-                asyncio.ensure_future(_receive())
-
-                #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
-
-            if id and (id in auth_ping_counter):
-                asyncio.ensure_future(_receive())
+                    asyncio.ensure_future(_receive())
 
                     #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
-            if probe_id and (probe_id not in connected_probes):
-                now = datetime.now(tz=timezone.utc)
-                connected_probes[probe_id] = {'conn_start': now,
-                                                  'id': probe_id,
-                                                  "exp": round_up_to_30sec(now + timedelta(seconds=30)),
-                                                  }
-                logger.debug(f"Initialized ping expiry for session {probe_id} -> {connected_probes[probe_id]['exp']}")
+                if id and (id in auth_ping_counter):
+                    asyncio.ensure_future(_receive())
 
-                asyncio.ensure_future(_receive())
+                    #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
-                monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
-
-            if probe_id and (probe_id in connected_probes):
-                asyncio.ensure_future(_receive())
-                monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
-
-            try:
-                async for message in broker.subscribe():
-                    await websocket.send(message)
-            except asyncio.CancelledError:
-                # Connection was closed, exit loop to cleanup normally
-                logger.debug("Subscribe loop cancelled (client disconnected)")
-                pass
-            except Exception as e:
-                logger.exception("Error while reading from broker or sending websocket message")
-                pass
+                try:
+                    async for message in broker.subscribe():
+                        await websocket.send(message)
+                except asyncio.CancelledError:
+                    # Connection was closed, exit loop to cleanup normally
+                    logger.debug("Subscribe loop cancelled (client disconnected)")
+                    pass
+                except Exception as e:
+                    logger.exception("Error while reading from broker or sending websocket message")
+                    pass
         else:
            await ip_blocker(conn_obj=websocket)
            raise Exception()
@@ -751,7 +797,7 @@ async def enroll():
         # Adopt new probe
         adopted_probe_data = await request.get_json()
         logger.info(adopted_probe_data)
-        prb_db_id = f"prb:{usr}:{adopted_probe_data['prb_id']}"
+        prb_db_id = f"prb:{adopted_probe_data['site']}:{adopted_probe_data['prb_id']}"
         adopted_probe_data['db_id'] = prb_db_id
         logger.info(adopted_probe_data)
 

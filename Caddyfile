@@ -50,6 +50,10 @@ umj.baughlabs.tech {
 		reverse_proxy @websockets socketapp:5000
 	}
 
+	handle /heartbeat* {
+		reverse_proxy @websockets socketapp:5000
+	}
+
 	handle /init* {
 		reverse_proxy socketapp:5000
 	}

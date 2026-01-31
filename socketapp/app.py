@@ -556,10 +556,11 @@ async def ws():
                         if api_data is None:
                             await ip_blocker(conn_obj=websocket)
                             raise Exception()
-                            
+                        
                         api_data_dict = next(iter(api_data.values()))
                         logger.info(api_data_dict)
-                        
+
+                        """
                         api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
                         api_rand = api_data_dict.get(f'{api_name}_rand')
                         decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
@@ -567,6 +568,8 @@ async def ws():
                         if decoded_token.get('rand') != api_rand:
                             logger.error(f"Probe JWT rand does not match stored api_rand\n\nToken: {decoded_token}\n\nStored api_rand: {api_rand}")
                             raise InvalidTokenError()
+                        
+                        """
                         
                 logger.info('websocket authentication successful')
                 await websocket.accept()

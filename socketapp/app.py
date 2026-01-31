@@ -482,7 +482,7 @@ async def check_ip_ws():
         except RuntimeError:
             return None
         
-@app.websocket.route("/heartbeat")
+@app.websocket("/heartbeat")
 @rate_exempt
 async def heartbeat():
     try:

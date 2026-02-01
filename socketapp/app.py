@@ -357,7 +357,21 @@ async def _receive() -> None:
                     else:
                         pass
 
-                case "prb_act_rslt":
+                case 'prb_act':
+                    logger.info(f"Received probe action message: {message}")
+
+                    prb_act_msg_data = {
+                        "prb_id": message['prb_id'],
+                        "act": message['act_func'],
+                        "prms": {
+                            "destination": "8.8.8.8",
+                            "max_hops": 30
+                        }
+                    }
+
+                    await probe_broker.publish(message=json.dumps(prb_act_msg_data))
+
+                case "prb_task_rslt":
                     match message['act_rslt_type']:
                         case 'pcap_lcl':
                             data = message['act_rslt']  
@@ -449,7 +463,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                             'timestamp': datetime.now(tz=timezone.utc)}
 
                     await broker.publish(message=json.dumps(probe_outage_data))
-                    break
+                    return None
 
             else:
                 # Not yet expired: sleep until the sooner of check_interval or time to expiry (based on quantized values)
@@ -490,7 +504,7 @@ async def heartbeat():
         monitor_task = None
 
         if websocket.args.get('prb_id') is None:
-            await ip_blocker(conn_obj=websocket)
+            await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
         
         probe_id = websocket.args.get('prb_id')
@@ -498,7 +512,7 @@ async def heartbeat():
         await cl_data_db.connect_db()  
 
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:
-            await ip_blocker(conn_obj=websocket)
+            await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
         if probe_id and (probe_id not in connected_probes):
@@ -534,14 +548,6 @@ async def heartbeat():
         logger.error(e)
     except asyncio.CancelledError as e:
         logger.error(e)
-    except ExpiredSignatureError:
-        logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=websocket)
-        logger.error(ExpiredSignatureError)
-    except InvalidTokenError as e:
-        logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=websocket)
-        logger.error(InvalidTokenError)
     finally:
         if monitor_task:
             try:
@@ -561,9 +567,6 @@ async def ws():
 
             id = None
             user = None
-            probe_conn = None
-            probe_id = None
-            recv_task = None
             monitor_task = None
 
             if websocket.args.get('id') is not None:
@@ -571,12 +574,6 @@ async def ws():
             
             if websocket.args.get('amp;unm') is not None:
                 user = websocket.args.get('amp;unm')
-
-            if websocket.args.get('prb') is not None:
-                probe_conn = websocket.args.get('prb')
-
-            if websocket.args.get('amp;prb_id') is not None:
-                probe_id = websocket.args.get('amp;prb_id')
 
             jwt_token = websocket.cookies.get("access_token")
             logger.info(f"Received JWT: {jwt_token}")
@@ -613,33 +610,6 @@ async def ws():
 
                         if decoded_token.get('rand') != sub_dict.get('usr_rand'):
                             raise InvalidTokenError()
-
-                if probe_conn is not None:
-
-                    if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) is True:
-                        user_data = await cl_auth_db.get_all_data(match=f'*uid:{user}*')
-                        user_data_dict = next(iter(user_data.values()))
-                        logger.info(user_data_dict.get('db_id'))
-
-                        api_data = await cl_data_db.get_all_data(match=f"api_dta:{user_data_dict.get('db_id')}")
-
-                        if api_data is None:
-                            await ip_blocker(conn_obj=websocket)
-                            raise Exception()
-                            
-                        api_data_dict = next(iter(api_data.values()))
-                        logger.info(api_data_dict)
-
-                        """
-                            api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-                            api_rand = api_data_dict.get(f'{api_name}_rand')
-                            decoded_token = jwt.decode(jwt=jwt_token, key=api_jwt_key, algorithms=["HS256"])
-
-                            if decoded_token.get('rand') != api_rand:
-                                logger.error(f"Probe JWT rand does not match stored api_rand\n\nToken: {decoded_token}\n\nStored api_rand: {api_rand}")
-                                raise InvalidTokenError()
-                            
-                            """
                             
                 logger.info('websocket authentication successful')
                 await websocket.accept()

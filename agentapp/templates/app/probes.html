@@ -1,6 +1,11 @@
 {% extends 'app/base.html' %}
 
 {% block content %}
+<style>
+  .modal {
+    z-index: 2050 !important;
+  }
+</style>
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-12">
@@ -31,21 +36,28 @@
                   <td class="align-middle text-center text-sm">{{ probe.url }}</td>
                   <td class="align-middle text-center text-sm">{{ probe.site }}</td>
                   <td>
-                      <div class="input-group mb-3">
-                          <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Probe Actions</button>
-                          <ul class="dropdown-menu">
-                              <li>
-                                  <button class="btn dropdown-item" data-action="ping">
-                                    Ping
-                                  </button>
-                              </li>
-                              <li>
-                                  <button class="btn dropdown-item" data-action="delete">
-                                    Delete
-                                  </button>
-                              </li>
-                          </ul>
-                      </div>
+                    <div class="input-group mb-3">
+                      <button type="button" class="btn btn-sm btn-info ms-2 probe-details-btn"
+                          data-name="{{ probe.name|e }}"
+                          data-url="{{ probe.url|e }}"
+                          data-site="{{ probe.site|e }}"
+                          data-id="{{ probe.db_id|e }}">
+                        Automation Manager
+                      </button>
+                      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Settings</button>
+                      <ul class="dropdown-menu">
+                        <li>
+                          <button class="btn dropdown-item" data-action="ping">
+                            Ping
+                          </button>
+                        </li>
+                        <li>
+                          <button class="btn dropdown-item" data-action="delete">
+                            Delete
+                          </button>
+                        </li>
+                      </ul> 
+                    </div>
                   </td>
                   <td class="align-middle text-center text-sm">{{ probe.db_id }}</td>
                 </tr>
@@ -55,6 +67,193 @@
             </table>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="probeDetailsModal" tabindex="-1" aria-labelledby="probeDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="probeDetailsModalLabel">Probe Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="trcrt-tab" data-bs-toggle="tab" data-bs-target="#trcrt-tab-pane" type="button" role="tab" aria-controls="trcrt-tab-pane" aria-selected="true">Path Discovery</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="spdtst-tab" data-bs-toggle="tab" data-bs-target="#spdtst-tab-pane" type="button" role="tab" aria-controls="spdtst-tab-pane" aria-selected="false">Performance Testing</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scan-tab" data-bs-toggle="tab" data-bs-target="#scan-tab-pane" type="button" role="tab" aria-controls="scan-tab-pane" aria-selected="false">Scans & Discovery</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pcap-tab" data-bs-toggle="tab" data-bs-target="#pcap-tab-pane" type="button" role="tab" aria-controls="pcap-tab-pane" aria-selected="false">Packet Capture</button>
+          </li>
+        </ul>
+        <div class="tab-content pt-3" id="myTabContent">
+          <div class="tab-pane fade show active" id="trcrt-tab-pane" role="tabpanel" aria-labelledby="trcrt-tab" tabindex="0">
+            <div id="trcrt-tab-content">
+              <form method="POST">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Type</label>
+                  <select id="trcrt-dropdown" class="form-select" aria-label="Default select example">
+                    <option value="trcrt">Traceroute</option>
+                    <option value="trcrt_dns">DNS Traceroute</option>
+                  </select>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Target</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Target" aria-label="traceroute-target" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Options</label>
+                  <div class="input-group">
+                    <span class="input-group-text" id="basic-addon3">>_</span>
+                    <input type="text" class="form-control" id="trcrt-options" aria-describedby="basic-addon3 basic-addon4">
+                    <div class="form-text" id="basic-addon4">traceroute/dnstraceroute command options (optional)</div>
+                  </div>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">DNS Server</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="DNS server to test" aria-label="trcrt-dns-test-server" aria-describedby="basic-addon1">
+                  <div class="form-text" id="basic-addon4">For dnstraceroute only. Defaults to 8.8.8.8 (optional)</div>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Packet Length</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Enter preferred packet length" aria-label="trcrt-packetlen" aria-describedby="basic-addon1">
+                  <div class="form-text" id="basic-addon4">For traceroute only (optional)</div>
+                </div>
+                <div class="d-grid">
+                  <button type="button" class="btn btn-dark mb-0">Start Traceroute</button>
+                </div>
+              </form> 
+            </div>
+          </div>
+          <div class="tab-pane fade" id="spdtst-tab-pane" role="tabpanel" aria-labelledby="spdtst-tab" tabindex="0">
+            <div id="spdtst-tab-content">
+              <form method="POST">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Mode</label>
+                  <select id="spdtst-dropdown" class="form-select" aria-label="Performance Test Mode">
+                    <option value="spdtst_srvr">Server Mode</option>
+                    <option value="spdtst_clnt">Client Mode</option>
+                  </select>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Target</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Target" aria-label="spdtst-target" aria-describedby="basic-addon1">
+                </div>  
+                <div class="form-floating mb-3">
+                  <label class="form-label">Options</label>
+                  <div class="input-group">
+                    <span class="input-group-text" id="basic-addon3">>_</span>
+                    <input type="text" class="form-control" id="spdtst-options" aria-describedby="basic-addon3 basic-addon4">
+                    <div class="form-text" id="basic-addon4">iperf command options (optional)</div>
+                  </div>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Server Endpoint</label>
+                  <input type="text" class="form-control" id="spdtst-clnt-options" aria-describedby="basic-addon3 basic-addon4">
+                  <div class="form-text" id="basic-addon4">NOTICE: For probes set in Client mode only</div>
+                </div>
+                <div class="d-grid">
+                  <button type="button" class="btn btn-dark mb-0">Start Perfomance Test</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="scan-tab-pane" role="tabpanel" aria-labelledby="scan-tab" tabindex="0">
+            <div id="scan-tab-content">
+              <form method="POST">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Scan Type</label>
+                  <select class="form-select" aria-label="Scan Mode">
+                    <option value="scan_arp">ARP Scan</option>
+                    <option value="scan_custom">Custom Scan</option>
+                    <option value="scan_dev_id">Device Identification Scan</option>
+                    <option value="scan_dev_fngr">Device Fingerprint Scan</option>
+                    <option value="scan_full">Full Network Scan</option>
+                    <option value="scan_snmp">SNMP Scan</option>
+                    <option value="scan_port">Port Scan</option>
+                  </select>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Target Subnet / IP/Host</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Target subnet or IP/host" aria-label="scan-target" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Scan Interface</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Scan interface" aria-label="scan-interface" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">nmap Command Options</label>
+                  <span class="input-group-text" id="basic-addon3">>_</span>
+                  <input type="text" class="form-control" id="nmap-options" aria-describedby="basic-addon3 basic-addon4">
+                  <div class="form-text" id="basic-addon4">Options for the nmap command</div>
+                </div>
+                <div class="d-grid">
+                  <button type="button" class="btn btn-dark mb-0">Start Scan</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="pcap-tab-pane" role="tabpanel" aria-labelledby="pcap-tab" tabindex="0">
+            <div id="pcap-tab-content">
+              <form method="POST">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Capture Type</label>
+                  <select class="form-select" aria-label="Default select example">
+                    <option value="pcap_lcl">Local Capture</option>
+                    <option value="pcap_tux">Remote Linux Capture</option>
+                    <option value="pcap_win">Remote Windows Capture</option>
+                  </select>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Capture Interface</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Capture Interface" aria-label="pcap-target" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Capture Count (Linux & Local only)</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="The number of packets to capture" aria-label="pcap-count-target" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Capture Duration (Windows only)</label>
+                  <span class="input-group-text" id="basic-addon1">@</span>
+                  <input type="text" class="form-control" placeholder="Capture duration in seconds" aria-label="pcap-duration-target" aria-describedby="basic-addon1">
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">PCAP Settings</label>
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="pcapllmAnalysisSwitch">
+                    <label class="form-check-label" for="pcapllmAnalysisSwitch">Enable LLM Analysis</label>
+                  </div>
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="pcapAutomationSwitch">
+                    <label class="form-check-label" for="pcapAutomationSwitch">Enable Automation</label>
+                  </div>
+                </div>
+                <div class="d-grid">
+                  <button type="button" class="btn btn-dark mb-0">Start Packet Capture</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -143,6 +342,57 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("Error executing action:", err);
     }
+  });
+
+  // Details button handler: open modal and populate tabs
+  const detailsButtons = document.querySelectorAll(".probe-details-btn");
+  const modalEl = document.getElementById('probeDetailsModal');
+  let bsModal = null;
+  if (modalEl && typeof bootstrap !== "undefined") {
+    bsModal = new bootstrap.Modal(modalEl, {});
+  }
+
+  detailsButtons.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation(); // prevent row click selection (if undesired)
+      const name = btn.dataset.name || '';
+      const url = btn.dataset.url || '';
+      const site = btn.dataset.site || '';
+      const id = btn.dataset.id || '';
+
+      // Fill modal fields
+      document.getElementById('probeDetailsModalLabel').textContent = `Probe: ${name}`;
+      document.getElementById('p-name').textContent = name;
+      const pUrlEl = document.getElementById('p-url');
+      pUrlEl.textContent = url;
+      pUrlEl.href = url || '#';
+      document.getElementById('p-site').textContent = site;
+      document.getElementById('p-id').textContent = id;
+
+      // Put raw JSON into contact tab (pretty)
+      const raw = {
+        name: name,
+        url: url,
+        site: site,
+        id: id
+      };
+      document.getElementById('p-json').textContent = JSON.stringify(raw, null, 2);
+
+      // Show modal
+      if (bsModal) {
+        bsModal.show();
+
+        // Ensure the first tab (Home) is active when opened
+        // Use Bootstrap Tab API to show the Home tab
+        const homeTabTrigger = modalEl.querySelector('#trcrt-tab');
+        if (homeTabTrigger) {
+          const tab = new bootstrap.Tab(homeTabTrigger);
+          tab.show();
+        }
+      } else {
+        console.warn("Bootstrap Modal not available - cannot show details modal.");
+      }
+    });
   });
 });
 </script>

@@ -265,7 +265,7 @@
             <div class="row mb-3">
                 <label class="form-label">Task Run Schedule</label>
                 <div class="col-4">
-                  <select class="form-select" id="task-days" data-placeholder="Choose days to run task" multiple>
+                  <select class="form-select" id="task-days" data-placeholder="Choose day to run task." multiple>
                       <option value="0">Sunday</option>
                       <option value="1">Monday</option>
                       <option value="2">Tuesday</option>
@@ -274,9 +274,10 @@
                       <option value="5">Friday</option>
                       <option value="6">Saturday</option>
                   </select>
+                  <div class="form-text">To run every Sunday, Wednesday and Saturday enter as such: 0,3,6.</div>
                 </div>
                 <div class="col-4">
-                  <select class="form-select" id="task-minutes" data-placeholder="Choose minute interval or enter any value between 0-59. For a range, enter start,end,interval (e.g., 5,50,5). The task would run every 5 minutes from 5 to 50." multiple>
+                  <select class="form-select" id="task-minutes" data-placeholder="Choose minute to run task." multiple>
                       <option>0</option>
                       <option>5</option>
                       <option>10</option>
@@ -289,7 +290,9 @@
                       <option>45</option>
                       <option>50</option>
                       <option>55</option>
-                  </select>    
+                  </select>   
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 5,50,5). The task would run every 5 minutes from 5 to 50. </div> 
+                  <div class="form-text">For a range, enter start,end (e.g., 35,45). The task would run during minutes 35 to 45 only. </div> 
                 </div>
                 <div class="col-4">
                   <select class="form-select" id="task-dom" data-placeholder="Choose day of month to run task." multiple>
@@ -325,6 +328,7 @@
                       <option>30</option>
                       <option>31</option>
                   </select>
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,31,1). The task would run every day from 1 to 31. </div> 
                 </div>
                 <div class="col-4">
                   <select class="form-select" id="task-months" data-placeholder="Choose month to run task." multiple>
@@ -341,9 +345,10 @@
                       <option value="11">November</option>
                       <option value="12">December</option>
                   </select>
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,12,1). The task would run every month from January to December. </div> 
                 </div>
                 <div class="col-4">
-                  <select class="form-select" id="task-hours" data-placeholder="Choose hour to run task. For a range, enter start,end,interval (e.g., 0,23,1). The task would run every hour from 0 to 23." multiple>
+                  <select class="form-select" id="task-hours" data-placeholder="Choose hour to run task." multiple>
                       <option>0</option>
                       <option>1</option>
                       <option>2</option>
@@ -369,6 +374,7 @@
                       <option>22</option>
                       <option>23</option>
                   </select>
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 0,23,1). The task would run every hour from 0 to 23. </div> 
                 </div>  
             </div>
           </div>

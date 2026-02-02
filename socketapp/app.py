@@ -403,6 +403,7 @@ async def _receive() -> None:
                         message['msg'] = final_output
                     
                     message['alert_type'] = 'task_result'
+                    message['timestamp'] = datetime.now(tz=timezone.utc)
 
                     await broker.publish(message=json.dumps(message))
                 case _:

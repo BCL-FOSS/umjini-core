@@ -363,10 +363,12 @@ async def _receive() -> None:
                         await connected_probes.get(message["prb_id"]).get("broker").publish(message=json.dumps(message))
 
                 case "prb_task_rslt":
+                    final_output = ""
+                    
                     if message['llm'] == 'y':
                         logger.info(f"Received probe LLM analysis result message: {message}.")
 
-                        llm_request = f"Analyze the following network test result and provide insights, potential issues, and recommendations based on the data:\n\n{message['act_rslt']}"
+                        llm_request = f"Analyze the following network test or scan result and provide insights, potential issues, and recommendations based on the data:\n\n{message['task_output']}"
 
                         smmry_payload = {
                                         'model': os.environ.get('OLLAMA_MODEL'),
@@ -382,15 +384,18 @@ async def _receive() -> None:
                         logger.info(smmry_resp.json())
                         summary_msg = smmry_resp.json()
 
-                        analysis_msg = {
-                            'site': message['site'],
-                            'alrt_type': 'llm_analysis',
-                            'prb_id': message['prb_id'],
-                            'act_rslt_type': message['act_rslt_type'],
-                            'llm_result': summary_msg['output_text']
-                            }
+                        final_output+=f'{message["task_output"]}\n\n'
+                        final_output+=summary_msg['output_text']
+                        logger.info(final_output)
 
-                    await broker.publish(message=json.dumps(analysis_msg))
+                        message['msg'] = final_output
+                    else:
+                        final_output+=message['task_output']
+                        message['msg'] = final_output
+                    
+                    message['alert_type'] = 'task_result'
+
+                    await broker.publish(message=json.dumps(message))
                 case _:
                     pass
         else:

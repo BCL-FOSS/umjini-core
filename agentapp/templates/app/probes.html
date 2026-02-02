@@ -161,7 +161,7 @@
           <div class="tab-pane fade" id="scan-tab-pane" role="tabpanel" aria-labelledby="scan-tab" tabindex="0">
             <div id="scan-tab-content">
               <form method="POST">
-                <label id="scan-ifaces">Scan Interfaces</label>
+                <h6 class="form-label bold" id="scan-ifaces">Scan Interfaces</h6>
                 <div class="form-floating mb-3">
                   <label class="form-label">Scan Type</label>
                   <select class="form-select" aria-label="Scan Mode" id="scan-dropdown">
@@ -196,9 +196,7 @@
           <div class="tab-pane fade" id="pcap-tab-pane" role="tabpanel" aria-labelledby="pcap-tab" tabindex="0">
             <div id="pcap-tab-content">
               <form method="POST">
-                <div class="form-floating mb-3">
-                  <label class="form-label" id="pcap-ifaces">PCAP Interfaces</label>
-                </div>
+                <h6 class="form-label bold" id="pcap-ifaces">PCAP Interfaces</h6>
                 <div class="form-floating mb-3">
                   <label class="form-label">Capture Mode</label>
                   <select class="form-select" id="pcap-dropdown" aria-label="Capture Mode">
@@ -247,126 +245,41 @@
             </div>
           </div>
           <div class="form-floating mb-3">
-            <label class="form-label bold">Task Run Schedule</label>
+            <h6 class="form-label bold">Task Run Schedule</h6>
+            <p class="form-text">Use the fields below to set up a custom schedule for the selected task. All fields accept comma-separated values or ranges. Leave unnecessary fields blank.</p>
             <div class="row mb-3">
                 <div class="col-12">
-                  <select class="form-select" id="task-days" data-placeholder="Choose day to run task." multiple>
-                      <option value="0">Sunday</option>
-                      <option value="1">Monday</option>
-                      <option value="2">Tuesday</option>
-                      <option value="3">Wednesday</option>
-                      <option value="4">Thursday</option>
-                      <option value="5">Friday</option>
-                      <option value="6">Saturday</option>
-                  </select>
+                  <label class="form-label">Choose day(s) of week to run task. Available values: 0 (Sunday) to 6 (Saturday).</label>
+                  <input class="form-control" type="text" id="task-days">
                   <div class="form-text">To run every Sunday, Wednesday and Saturday enter as such: 0,3,6.</div>
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
-                  <select class="form-select" id="task-minutes" data-placeholder="Choose minute to run task." multiple>
-                      <option>0</option>
-                      <option>5</option>
-                      <option>10</option>
-                      <option>15</option>
-                      <option>20</option>
-                      <option>25</option>
-                      <option>30</option>
-                      <option>35</option>
-                      <option>40</option>
-                      <option>45</option>
-                      <option>50</option>
-                      <option>55</option>
-                  </select>   
+                  <label class="form-label">Choose minute(s) to run task. Available values: 0 to 59.</label>
+                  <input class="form-control" type="text" id="task-minutes">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 5,50,5). The task would run every 5 minutes from 5 to 50. </div> 
                   <div class="form-text">For a range, enter start,end (e.g., 35,45). The task would run during minutes 35 to 45 only. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
-                  <select class="form-select" id="task-dom" data-placeholder="Choose day of month to run task." multiple>
-                      <option>1</option>
-                      <option>2</option>
-                      <option>3</option>
-                      <option>4</option>
-                      <option>5</option>
-                      <option>6</option>
-                      <option>7</option>
-                      <option>8</option>
-                      <option>9</option>
-                      <option>10</option>
-                      <option>11</option>
-                      <option>12</option>
-                      <option>13</option>
-                      <option>14</option>
-                      <option>15</option>
-                      <option>16</option>
-                      <option>17</option>
-                      <option>18</option>
-                      <option>19</option>
-                      <option>20</option>
-                      <option>21</option>
-                      <option>22</option>
-                      <option>23</option>
-                      <option>24</option>
-                      <option>25</option>
-                      <option>26</option>
-                      <option>27</option>
-                      <option>28</option>
-                      <option>29</option>
-                      <option>30</option>
-                      <option>31</option>
-                  </select>
+                  <label class="form-label">Choose day(s) of month to run task. Available values: 1 to 31.</label>
+                  <input class="form-control" type="text" id="task-dom">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,31,1). The task would run every day from 1 to 31. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
-                  <select class="form-select" id="task-months" data-placeholder="Choose month to run task." multiple>
-                      <option value="1">January</option>
-                      <option value="2">February</option>
-                      <option value="3">March</option>
-                      <option value="4">April</option>
-                      <option value="5">May</option>
-                      <option value="6">June</option>
-                      <option value="7">July</option>
-                      <option value="8">August</option>
-                      <option value="9">September</option>
-                      <option value="10">October</option>
-                      <option value="11">November</option>
-                      <option value="12">December</option>
-                  </select>
+                  <label class="form-label">Choose month(s) to run task. Available values: 1 to 12.</label>
+                  <input class="form-control" type="text" id="task-months">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,12,1). The task would run every month from January to December. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
-                  <select class="form-select" id="task-hours" data-placeholder="Choose hour to run task." multiple>
-                      <option>0</option>
-                      <option>1</option>
-                      <option>2</option>
-                      <option>3</option>
-                      <option>4</option>
-                      <option>5</option>
-                      <option>6</option>
-                      <option>7</option>
-                      <option>8</option>
-                      <option>9</option>
-                      <option>10</option>
-                      <option>11</option>
-                      <option>12</option>
-                      <option>13</option>
-                      <option>14</option>
-                      <option>15</option>
-                      <option>16</option>
-                      <option>17</option>
-                      <option>18</option>
-                      <option>19</option>
-                      <option>20</option>
-                      <option>21</option>
-                      <option>22</option>
-                      <option>23</option>
-                  </select>
+                  <label class="form-label">Choose hour(s) to run task. Available values: 0 to 23.</label>
+                  <input class="form-control" type="text" id="task-hours">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 0,23,1). The task would run every hour from 0 to 23. </div> 
                 </div>  
             </div>

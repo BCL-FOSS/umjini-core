@@ -36,10 +36,6 @@
     <!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow@0.0.48/dist/drawflow.min.css">-->
     <link href="{{ url_for('static', filename='css/drawflow.min.css') }}" rel="stylesheet" />
     <link href="{{ url_for('static', filename='css/workflow.css') }}" rel="stylesheet" />
-
-    <!-- Select2 CSS-->
-    <link href="{{ url_for('static', filename='css/select2_css/select2.min.css') }}" rel="stylesheet" />
-    <link href="{{ url_for('static', filename='css/select2_css/select2-bootstrap-5-theme.min.css') }}" rel="stylesheet" />
     
     <style>
       #network { width: 100%; height: 85vh; background: #f0f0f0; border: 1px solid #ccc; }
@@ -438,10 +434,6 @@
   <script src="{{ url_for('static', filename='js/plugins/smooth-scrollbar.min.js') }}" ></script>
   <!-- Plotly CDN -->
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-  <!-- Select2 JS -->
-  <script src="{{ url_for('static', filename='js/select2_js/jquery.slim.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/select2_js/bootstrap.bundle.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/select2_js/select2.full.min.js') }}"></script>
   <script type="text/javascript">
     var csrf_token = "{{ csrf_token() }}";
 
@@ -599,51 +591,11 @@
     const scanInit = document.getElementById("scan-init");
     const iperfInit = document.getElementById("iperf-init");
     const trcrtInit = document.getElementById("trcrt-init");
-
-    const taskDays = document.getElementById('task-days').select2( {
-      theme: "bootstrap-5",
-      width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-      placeholder: $( this ).data( 'placeholder' ),
-      closeOnSelect: false,
-      allowClear: true,
-      tags: true
-    } );
-
-    const taskMonths = document.getElementById('task-months').select2( {
-      theme: "bootstrap-5",
-      width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-      placeholder: $( this ).data( 'placeholder' ),
-      closeOnSelect: false,
-      allowClear: true,
-      tags: true
-    } );
-
-    const taskHours = document.getElementById('task-hours').select2( {
-      theme: "bootstrap-5",
-      width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-      placeholder: $( this ).data( 'placeholder' ),
-      closeOnSelect: false,
-      allowClear: true,
-      tags: true
-    } );
-
-    const taskMinutes = document.getElementById('task-minutes').select2( {
-      theme: "bootstrap-5",
-      width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-      placeholder: $( this ).data( 'placeholder' ),
-      closeOnSelect: false,
-      allowClear: true,
-      tags: true
-    } );
-
-    const taskDom = document.getElementById('task-dom').select2( {
-      theme: "bootstrap-5",
-      width: $( this ).data( 'width' ) ? $( this ).data( 'width' ) : $( this ).hasClass( 'w-100' ) ? '100%' : 'style',
-      placeholder: $( this ).data( 'placeholder' ),
-      closeOnSelect: false,
-      allowClear: true,
-      tags: true
-    } );
+    const taskDays = document.getElementById('task-days');
+    const taskMonths = document.getElementById('task-months');
+    const taskHours = document.getElementById('task-hours');
+    const taskMinutes = document.getElementById('task-minutes');
+    const taskDom = document.getElementById('task-dom');
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -739,11 +691,11 @@
 
       if (automationSwitch.checked){
         taskData["automate"] = 'y';
-        taskData["days"] = taskDays.val();
-        taskData["months"] = taskMonths.val();
-        taskData["hours"] = taskHours.val();
-        taskData["minutes"] = taskMinutes.val();
-        taskData["dom"] = taskDom.val();
+        taskData["days"] = taskDays.value;
+        taskData["months"] = taskMonths.value;
+        taskData["hours"] = taskHours.value;
+        taskData["minutes"] = taskMinutes.value;
+        taskData["dom"] = taskDom.value;
       } else {
         taskData["automate"] = 'n';
       }
@@ -783,11 +735,11 @@
 
       if (automationSwitch.checked){
         taskData["automate"] = 'y';
-        taskData["days"] = taskDays.val();
-        taskData["months"] = taskMonths.val();
-        taskData["hours"] = taskHours.val();
-        taskData["minutes"] = taskMinutes.val();
-        taskData["dom"] = taskDom.val();
+        taskData["days"] = taskDays.value;
+        taskData["months"] = taskMonths.value;
+        taskData["hours"] = taskHours.value;
+        taskData["minutes"] = taskMinutes.value;
+        taskData["dom"] = taskDom.value;
       } else {
         taskData["automate"] = 'n';
       }
@@ -831,11 +783,11 @@
 
       if (automationSwitch.checked){
         taskData["automate"] = 'y';
-        taskData["days"] = taskDays.val();
-        taskData["months"] = taskMonths.val();
-        taskData["hours"] = taskHours.val();
-        taskData["minutes"] = taskMinutes.val();
-        taskData["dom"] = taskDom.val();
+        taskData["days"] = taskDays.value;
+        taskData["months"] = taskMonths.value;
+        taskData["hours"] = taskHours.value;
+        taskData["minutes"] = taskMinutes.value;
+        taskData["dom"] = taskDom.value;
       } else {
         taskData["automate"] = 'n';
       }
@@ -883,11 +835,11 @@
 
       if (automationSwitch.checked){
         taskData["automate"] = 'y';
-        taskData["days"] = taskDays.val();
-        taskData["months"] = taskMonths.val();
-        taskData["hours"] = taskHours.val();
-        taskData["minutes"] = taskMinutes.val();
-        taskData["dom"] = taskDom.val();
+        taskData["days"] = taskDays.value;
+        taskData["months"] = taskMonths.value;
+        taskData["hours"] = taskHours.value;
+        taskData["minutes"] = taskMinutes.value;
+        taskData["dom"] = taskDom.value;
       } else {
         taskData["automate"] = 'n';
       }

@@ -68,6 +68,8 @@ services:
       - CLIENT_DATA_DB_PORT=${CLIENT_DATA_DB_PORT}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
       - OLLAMA_MODEL=qwen3:1.7b
+      - OLLAMA_PROXY_URL=http://ollama-proxy:8000/v1
+      - SERVER_NAME=${SERVER_NAME}
       
   ollama:
     image: ollama/ollama:latest

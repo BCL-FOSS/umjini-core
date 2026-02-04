@@ -162,6 +162,8 @@
       <div class="modal-header">
         <h5 class="modal-title" id="probeTaskConfigModalLabel">Probe Details</h5>
         <div id="probe-id-modal"></div>
+        <div id="probe-name-modal"></div>
+        <div id="probe-site-modal"></div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -586,6 +588,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // Fill modal fields
       document.getElementById('probeTaskConfigModalLabel').textContent = `${name} Task Automation Settings`;
       document.getElementById('probe-id-modal').dataset.pid = id;
+      document.getElementById('probe-name-modal').dataset.name = name;
+      document.getElementById('probe-site-modal').dataset.site = site;
       document.getElementById('scan-ifaces').textContent = `Available Interfaces: ${ifaces}`;
       document.getElementById('pcap-ifaces').textContent = `Available Interfaces: ${ifaces}`;
 
@@ -644,7 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  deleteProbeButton.addEventListener("click", async (e) => {
+  deleteProbeButton.addEventListener("click", async function() {
     const probeId = deleteProbeButton.dataset.id;
     if (!probeId) {
       alert("Probe ID not found!");

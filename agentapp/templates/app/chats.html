@@ -22,8 +22,6 @@
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Name</th>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Site</th>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Timestamp</th>
-                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Acknowledged</th>
-                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Resolved</th>
                   <th></th>
                 </tr>
               </thead>
@@ -52,20 +50,6 @@
                   <td class="align-middle text-center">
                     <div class="d-flex align-items-center">
                       <span class="me-2 text-xs">{{ alert.timestamp }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="d-flex px-2">
-                      <div>
-                        <img src="{{ url_for('static', filename='img/bcl/'+alert.ack+'.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="d-flex px-2">
-                      <div>
-                        <img src="{{ url_for('static', filename='img/bcl/'+alert.rslv+'.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
-                      </div>
                     </div>
                   </td>
 
@@ -139,7 +123,6 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="alertAckModalLabel">Alert Acknowledge</h5>
-        <div id="alert-ack-id"></div>
        
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -149,7 +132,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" id="alert-ack-init">Acknowledge</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="alert-ack-init">Acknowledge</button>
       </div>
     </div>
   </div>
@@ -160,7 +143,6 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="alertRslvModalLabel">Alert Resolve</h5>
-        <div id="alert-rslv-id"></div>
        
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -170,7 +152,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" id="alert-rslv-init">Resolve</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="alert-rslv-init">Resolve</button>
       </div>
     </div>
   </div>
@@ -259,7 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Fill modal fields
       document.getElementById('alertAckModalLabel').textContent = `Acknowledge Alert - ${name} ${alert_type}`;
       document.getElementById('alert-ack-msg').textContent = `Are you sure you want to acknowledge the alert: ${msg}`;
-      document.getElementById('alert-ack-init').dataset.id = id;
       if (alertAckModal) {
         alertAckModal.show();
       } else {
@@ -282,7 +263,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Fill modal fields
       document.getElementById('alertRslvModalLabel').textContent = `Resolve Alert - ${name} ${alert_type}`;
       document.getElementById('alert-rslv-msg').textContent = `Are you sure you want to resolve the alert: ${msg}`;
-      document.getElementById('alert-rslv-init').dataset.id = id;
       if (alertRslvModal) {
         alertRslvModal.show();
       } else {
@@ -291,36 +271,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  alertAckInitButton.addEventListener("click", async function() {
-    const endpoint = `https://${mntrURL}/alerts?usr={{ cur_usr }}`;
-    const payload = { 'id': this.dataset.id,
-                         'action': 'ack' };
-    
-    const resp = await fetch(endpoint, {method: "POST", credentials:"same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
-      if (resp.ok) {
-        alert("Alert acknowledge successful");
-        if (alertAckModal) {
-          alertAckModal.hide();
-        }
-      } else {
-        alert("Alert acknowledge failed");
-      }
+  alertAckInitButton.addEventListener("click", () => {
+    // Implement alert acknowledge logic here, e.g. send an API request to update alert status
+    console.log("Alert acknowledged - implement API call to update alert status");
   });
 
-  alertRslvInitButton.addEventListener("click", async function() {
-    const endpoint = `https://${mntrURL}/alerts?usr={{ cur_usr }}`;
-    const payload = { 'id': this.dataset.id,
-                         'action': 'rslv' };
-    
-    const resp = await fetch(endpoint, {method: "POST", credentials:"same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
-      if (resp.ok) {
-        alert("Alert resolve successful");
-        if (alertRslvModal) {
-          alertRslvModal.hide();
-        }
-      } else {
-        alert("Alert resolve failed");
-      }
+  alertRslvInitButton.addEventListener("click", () => {
+    // Implement alert resolve logic here, e.g. send an API request to update alert status
+    console.log("Alert resolved - implement API call to update alert status");
   });
 
 });

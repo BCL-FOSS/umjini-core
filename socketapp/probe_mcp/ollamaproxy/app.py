@@ -1,3 +1,4 @@
+import asyncio
 import re
 import json
 import httpx
@@ -15,6 +16,7 @@ from utils.SlackAlert import SlackAlert
 #from utils.orchestration_framework.Supervisorv3 import Supervisor
 from utils.orchestration_framework.Workerv2 import LLMWorker
 from utils.orchestration_framework.orchestration import Supervisor, Worker
+from crontab import CronTab
 
 cl_data_db = RedisDB(hostname=os.environ.get('CL_DATA_DB'), port=os.environ.get('CL_DATA_DB_PORT'))
 
@@ -923,11 +925,11 @@ async def run():
                     llm_agent_result = await llm_agents.get(node_output_mapping.get(agent)).act(incoming_message=llm_worker_input)
                     llm_output_data = llm_agent_result[0]['result']
                     logger.info(llm_output_data)
-                    return jsonify({'compiled': True, 'result': llm_output_data})  
+                    return jsonify({'compiled': True, 'result': llm_output_data}), 200  
 
         #agent_count = 0
 
-        return jsonify({'compiled': True, 'result': result})    
+        return jsonify({'compiled': True, 'result': result}), 200    
     else:
         return jsonify({'compiled': False, 'result': None}), 400
 
@@ -992,7 +994,105 @@ async def delete():
     result = await cl_data_db.del_obj(key=id)
 
     if result is not None:
-        return jsonify(result)
+        return jsonify(result), 200
+    
+@app.route('/v1/edit', methods=['POST'])
+async def edit():
+    data = await request.get_json()
+    logger.info(data)
+    id = data.get('id')
+    probe = data.get('probe')
+    flow_data = data.get('flow')
+    name = data.get('name')
 
+    await cl_data_db.connect_db()
+
+    if await cl_data_db.del_obj(key=id) is not None:
+        flow_data_payload = {
+            'id': id,
+            'probe': probe,
+            'flow': flow_data,
+            'name': name
+        }
+        logger.info(flow_data_payload)
+
+        if await cl_data_db.upload_db_data(id=id, data=flow_data_payload) > 0:
+            return jsonify({'status':'edited', 'flow':f'{id}.json'}), 200
+        else:
+            return jsonify({'status':'failed'}), 400
+        
+@app.route('/v1/schedule', methods=['POST'])
+async def schedule():
+    data = await request.get_json() 
+    logger.info(data)
+    id = data.get('id')
+    schedule = data.get('schedule')
+    probe = data.get('probe')
+    cron=CronTab()
+    cwd = os.getcwd()
+
+    await cl_data_db.connect_db()
+
+    if await cl_data_db.get_all_data(match=f'{probe}', cnfrm=True) is True:
+        probe_data = await cl_data_db.get_all_data(match=f'*{probe}*')
+        probe_data_dict=next(iter(probe_data.values()))
+        prb_id = probe_data_dict.get('prb_id')
+
+    ws_url = f'wss://{os.environ.get('SERVER_NAME')}/heartbeat/{prb_id}'
+    script_path = os.path.join(cwd, 'task_auto.py') 
+    job1=cron.new(command=f"python3 {script_path} -id {id} -p {probe} -ws {ws_url}", comment=f"auto_task_{id}_{probe}")
+
+    if 'minutes' in schedule and schedule['minutes']:
+        minutes_range = str(schedule['minutes']).split(",")
+        if isinstance(minutes_range, list):
+            if len(minutes_range) == 3:
+                job1.minute.during(minutes_range[0], minutes_range[1]).every(minutes_range[2])
+            elif len(minutes_range) == 2:
+                job1.minute.during(minutes_range[0], minutes_range[1])
+            elif len(minutes_range) == 1:
+                job1.minute.every(minutes_range[0])
+
+    if 'hours' in schedule and schedule['hours']:
+        hours_range = str(schedule['hours']).split(",")
+        if isinstance(hours_range, list):
+            if len(hours_range) == 3:
+                job1.hour.during(hours_range[0], hours_range[1]).every(hours_range[2])
+            elif len(hours_range) == 2:
+                job1.hour.during(hours_range[0], hours_range[1])
+            elif len(hours_range) == 1:
+                job1.hour.every(hours_range[0])
+
+    if 'dom' in schedule and schedule['dom']:
+        dom_range = str(schedule['dom']).split(",")
+        if isinstance(dom_range, list):
+            if len(dom_range) == 3:
+                job1.dom.during(dom_range[0], dom_range[1]).every(dom_range[2])
+            elif len(dom_range) == 2:
+                job1.dom.during(dom_range[0], dom_range[1])
+            elif len(dom_range) == 1:
+                job1.dom.every(dom_range[0])
+
+    if 'days' in schedule and schedule['days']:
+        days_range = str(schedule['days']).split(",")
+        if isinstance(days_range, list):
+            job1.dow.on(days_range)
+
+    if 'months' in schedule and schedule['months']:
+        months_range = str(schedule['months']).split(",")
+        if isinstance(months_range, list):
+            if len(months_range) == 3:
+                job1.month.during(months_range[0], months_range[1]).every(months_range[2])
+            elif len(months_range) == 2:
+                job1.month.during(months_range[0], months_range[1])
+            elif len(months_range) == 1:
+                job1.month.every(months_range[0])
+
+
+    if await asyncio.to_thread(job1.is_valid()):
+        await asyncio.to_thread(cron.write())
+        return jsonify({'status':'scheduled'}), 200
+    else:
+        return jsonify({'status':'failed'}), 400
+                         
 
    

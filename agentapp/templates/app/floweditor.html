@@ -63,18 +63,6 @@
               </ul>
             </div>
           </li>
-          <li>
-            <div class="dropdown">
-              <button class="btn btn-secondary dropdown-toggle" type="button" id="workFlowDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                Edit Flow 
-              </button>
-              <ul class="dropdown-menu" aria-labelledby="workFlowDropdown">
-                {% for flow in flows.values() %}
-                  <li><div class="dropdown-item" value="{{ flow.id }}"><i class="fas fa-mouse"></i>{{ flow.name }}</div></li>
-                {% endfor %}
-              </ul>
-            </div>
-          </li>
         </ul>
       </div>
       <div id="drawflow" style="background-color: gray;" ondrop="drop(event)" ondragover="allowDrop(event)">
@@ -167,23 +155,6 @@
       item.addEventListener('click', function(event) {
         selectedFlow = this.getAttribute('value');
         console.log(selectedFlow);
-      });
-    });
-
-    // Load flow
-    document.querySelectorAll('#workFlowDropdown + .dropdown-menu .dropdown-item').forEach(item => {
-      item.addEventListener('click', async function(event) {
-        workflowToLoad = this.getAttribute('value');
-        console.log(workflowToLoad);
-
-        const payload = { id: `${workflowToLoad}` }
-        //const resp = await fetch(`https://${mntrURL}/flowload?usr={{ cur_usr }}`, {method:'POST', headers:{'Content-Type':'application/json', 'X-ACCESS-TOKEN':'{{ jwt_token }}'}, body:JSON.stringify(payload)})
-        const resp = await fetch(`https://${mntrURL}/flowload?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)})
-        const j = await resp.json()
-        alert(JSON.stringify(j))
-        editor.clearModuleSelected()
-        editor.import(j)
-        alert('Loaded Flow data');
       });
     });
 

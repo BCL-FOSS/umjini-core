@@ -572,10 +572,10 @@ async def flowmgr(cmp_id, obsc):
     return await render_template("app/flowmgr.html", obsc_key=session.get('url_key') ,
                                 flows=all_flows, cmp_id=cmp_id, ollama_proxy =os.environ.get('OLLAMA_PROXY_URL'), user=cl_sess_data_dict.get('unm'), mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, ws_url=ws_url, data=data)
 
-@app.route('/netvis', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/netvis/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@app.route('/alerts', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
+@app.route("/alerts/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
-async def netvis(cmp_id, obsc):
+async def alerts(cmp_id, obsc):
     util_obj = Util()
 
     cur_usr_id = current_client.auth_id
@@ -601,7 +601,71 @@ async def netvis(cmp_id, obsc):
     
     discovery_results = None
 
-    return await render_template("app/netvis.html", obsc_key=session.get('url_key') ,
+    return await render_template("app/alerts.html", obsc_key=session.get('url_key') ,
+                                  cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
+
+@app.route('/chats', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
+@app.route("/chats/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@user_login_required
+async def chats(cmp_id, obsc):
+    util_obj = Util()
+
+    cur_usr_id = current_client.auth_id
+    
+    await cl_auth_db.connect_db()
+    await cl_sess_db.connect_db()
+
+    # Retrieve user session data
+    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
+    cl_sess_data_dict = next(iter(cl_sess_data.values()))
+    logger.info(cl_sess_data_dict)
+
+    cur_usr = cl_sess_data_dict.get('unm')
+
+    data = {'unm': cl_sess_data_dict.get('unm'),
+            'id': cl_sess_data_dict.get('db_id'),
+            'fnm': cl_sess_data_dict.get('fname'),
+            'lnm': cl_sess_data_dict.get('lname'),
+            'eml': cl_sess_data_dict.get('eml')}
+
+    # URL for agent websocket connection initialization
+    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    
+    discovery_results = None
+
+    return await render_template("app/chats.html", obsc_key=session.get('url_key') ,
+                                  cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
+
+@app.route('/tasks', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
+@app.route("/tasks/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@user_login_required
+async def tasks(cmp_id, obsc):
+    util_obj = Util()
+
+    cur_usr_id = current_client.auth_id
+    
+    await cl_auth_db.connect_db()
+    await cl_sess_db.connect_db()
+
+    # Retrieve user session data
+    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
+    cl_sess_data_dict = next(iter(cl_sess_data.values()))
+    logger.info(cl_sess_data_dict)
+
+    cur_usr = cl_sess_data_dict.get('unm')
+
+    data = {'unm': cl_sess_data_dict.get('unm'),
+            'id': cl_sess_data_dict.get('db_id'),
+            'fnm': cl_sess_data_dict.get('fname'),
+            'lnm': cl_sess_data_dict.get('lname'),
+            'eml': cl_sess_data_dict.get('eml')}
+
+    # URL for agent websocket connection initialization
+    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    
+    discovery_results = None
+
+    return await render_template("app/tasks.html", obsc_key=session.get('url_key') ,
                                   cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
 
 @app.errorhandler(Unauthorized)

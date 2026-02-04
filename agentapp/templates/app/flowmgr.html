@@ -1,6 +1,11 @@
 {% extends 'app/base.html' %}
 
 {% block content %}
+<style>
+  .modal {
+    z-index: 2050 !important;
+  }
+</style>
 <div class="container-fluid py-4">
    <!--<script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>-->
   <script src="{{ url_for('static', filename='js/drawflow.min.js') }}" ></script>
@@ -167,6 +172,7 @@
         </div>
         <div id="flow-edit-id-holder"></div>
         <div id="flow-edit-probe-holder"></div>
+        <div id="flow-edit-name-holder"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -525,7 +531,28 @@
   const flowScheduleProbeHolder = document.getElementById('flow-schedule-probe-holder');
   const flowDeleteIdHolder = document.getElementById('flow-delete-id-holder');  
   const flowDeleteProbeHolder = document.getElementById('flow-delete-probe-holder');
+  const flowEditIdHolder = document.getElementById('flow-edit-id-holder');
+  const flowEditProbeHolder = document.getElementById('flow-edit-probe-holder');
+  const flowEditNameHolder = document.getElementById('flow-edit-name-holder');
 
+  flowEditModal.addEventListener('shown.bs.modal', async function() {
+    // Code to run after the modal is fully shown
+    console.log('Modal is fully visible!');
+
+    const id = flowEditIdHolder.dataset.id;
+    const probe = flowEditProbeHolder.dataset.probe;
+    const name = flowEditNameHolder.dataset.name;
+    const payload = { id: id, probe: probe };    
+    const resp = await fetch(`https://${mntrURL}/flowload?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)})
+    const j = await resp.json()
+
+    if (resp.ok) {
+      alert(JSON.stringify(j))
+      editor.clearModuleSelected()
+      editor.import(j)
+      alert('Loaded Flow data');
+    }
+  });
 
   document.querySelectorAll('#flowTable tbody tr').forEach(row => {
     row.addEventListener('click', () => {
@@ -561,14 +588,7 @@
       editFlowLabel.textContent = `Edit Flow: ${name}`;
       flowEditIdHolder.dataset.id = id;
       flowEditProbeHolder.dataset.probe = probe;
-
-      const payload = { id: id, probe: probe };    
-      const resp = await fetch(`https://${mntrURL}/flowload?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)})
-      const j = await resp.json()
-      alert(JSON.stringify(j))
-      editor.clearModuleSelected()
-      editor.import(j)
-      alert('Loaded Flow data');
+      flowEditNameHolder.dataset.name = name;
       flowEditModal.show();
     });
   });
@@ -600,7 +620,7 @@
     });
   });
 
-  runFlowButton.addEventListener('click', async () => {
+  runFlowButton.addEventListener('click', async function() {
     const id = flowIdHolder.dataset.id;
     const probe = flowProbeHolder.dataset.probe;
     const payload = { id: id, probe: probe };
@@ -619,7 +639,7 @@
     }
   });
 
-  deleteFlowButton.addEventListener('click', async () => {
+  deleteFlowButton.addEventListener('click', async function() {
     const id = flowDeleteIdHolder.dataset.id;
     const probe = flowDeleteProbeHolder.dataset.probe;
     const payload = { id: id, probe: probe };
@@ -638,7 +658,7 @@
     }
   });
 
-  scheduleFlowButton.addEventListener('click', async () => {
+  scheduleFlowButton.addEventListener('click', async function() {
     const id = flowScheduleIdHolder.dataset.id;
     const probe = flowScheduleProbeHolder.dataset.probe;
     const llmAnalysisEnabled = document.getElementById('llmAnalysisSwitch').checked;
@@ -675,7 +695,29 @@
     }
   });
 
-  editFlowButton.addEventListener('click', async () => {
+  editFlowButton.addEventListener('click', async function() {
+    const id = flowEditIdHolder.dataset.id;
+    const probe = flowEditProbeHolder.dataset.probe;
+    const name  = flowEditNameHolder.dataset.name;
+
+    const data = editor.export();
+    alert(savename);
+    const flow = JSON.stringify(data, null,4)
+    const payload = { id: id, flow: flow, probe: probe, unm: "{{ user }}" , name: name}
+
+    try {
+      const resp = await fetch(`https://${mntrURL}/flowedit?usr=${curUser}`, {method: 'POST', credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+
+      if (resp.ok) {
+        const j = await resp.json()
+        alert(`Flow edit executed successfully.\n`+JSON.stringify(j));
+      } else {
+        alert(`Flow edit failed.`);
+      }
+    } catch (err) {
+      console.error('Network or server error:', err);
+    }
+
     
   });
 

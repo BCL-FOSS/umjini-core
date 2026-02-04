@@ -363,16 +363,30 @@ async def _receive() -> None:
                         await connected_probes.get(message["prb_id"]).get("broker").publish(message=json.dumps(message))
                     else:
                         probe_conn_error = {
-                            'alert_type': 'probe_connection_error',
+                            'alert_type': 'outage',
                             'site': message['site'],
                             'name': message['name'],
+                            'prb_id': message['prb_id'],
                             'msg': f"Probe with ID {message['prb_id']} is not connected. Verify network connectivity at the site or resource the probe is located at. Unable to deliver task.",
                             'timestamp': datetime.now(tz=timezone.utc)
                         }
+
+                        alert_id = f"alert:{message['alert_type']}:{message['prb_id']}:{message['timestamp']}"
+
+                        probe_conn_error['id'] = alert_id
+
+                        if await cl_data_db.upload_db_data(id=alert_id, data=probe_conn_error) > 0:
+                            logger.info(f"Task result data uploaded successfully with id: alert:{message['alert_type']}:{message['prb_id']}:{message['timestamp']}")
+
                         await broker.publish(message=json.dumps(probe_conn_error))
 
                 case "prb_task_rslt":
                     final_output = ""
+                    probe_task_result_data = {'site': message['site'],
+                                              'name': message['name'],
+                                              'prb_id': message['prb_id'],
+                                              'alert_type': 'task_result',
+                                              'timestamp': datetime.now(tz=timezone.utc).isoformat()}
                     
                     if message['llm'] == 'y':
                         logger.info(f"Received probe LLM analysis result message: {message}.")
@@ -397,15 +411,18 @@ async def _receive() -> None:
                         final_output+=summary_msg['output_text']
                         logger.info(final_output)
 
-                        message['msg'] = final_output
+                        probe_task_result_data['msg'] = final_output
                     else:
                         final_output+=message['task_output']
-                        message['msg'] = final_output
-                    
-                    message['alert_type'] = 'task_result'
-                    message['timestamp'] = datetime.now(tz=timezone.utc)
+                        probe_task_result_data['msg'] = final_output
 
-                    await broker.publish(message=json.dumps(message))
+                    alert_id = f"alert:{probe_task_result_data['alert_type']}:{probe_task_result_data['prb_id']}:{probe_task_result_data['timestamp']}"
+
+                    probe_task_result_data['id'] = alert_id
+
+                    if await cl_data_db.upload_db_data(id=alert_id, data=probe_task_result_data) > 0:
+                        logger.info(f"Task result data uploaded successfully with id: task_result:{probe_task_result_data['prb_id']}:{probe_task_result_data['timestamp']}")
+                        await broker.publish(message=json.dumps(probe_task_result_data))
                 case _:
                     pass
         else:
@@ -485,11 +502,19 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                                                                           'badge': 'danger',
                                                                                           'last_online': now.isoformat()})
 
-                    probe_outage_data = {'alert_type': 'probe_outage',
+                    probe_outage_data = {'alert_type': 'outage',
                                             'site': probe_data_dict.get('site'),
                                             'name': probe_data_dict.get('name'),
+                                            'prb_id': sess_id,
                                             'msg': f'Probe {probe_data_dict.get("name")} (ID: {sess_id}) is offline or a network outage has occurred at the site or resource the probe is located at.',
-                                            'timestamp': datetime.now(tz=timezone.utc)}
+                                            'timestamp': now.isoformat()}
+                    
+                    alert_id = f"alert:{probe_outage_data['alert_type']}:{sess_id}:{now.isoformat()}"
+
+                    probe_outage_data['id'] = alert_id
+                    
+                    if await cl_data_db.upload_db_data(id=alert_id, data=probe_outage_data) > 0:
+                        logger.info(f"Probe outage alert data uploaded successfully with id: alert:{probe_outage_data['alert_type']}:{sess_id}:{now.isoformat()}")
 
                     await broker.publish(message=json.dumps(probe_outage_data))
                     return None
@@ -1140,6 +1165,66 @@ async def flowload():
     except InvalidTokenError as e:
         logger.error(f"JWT invalid: {e}")
         return InvalidTokenError()
+    
+@app.route('/flowedit', methods=['POST'])
+async def flowedit():
+    jwt_token = request.cookies.get("api_access_token")
+    usr = request.args.get('usr')
+
+    if not jwt_token or not usr:
+        await ip_blocker(conn_obj=request)
+        return jsonify(error="Missing required request data"), 400
+    
+    await cl_auth_db.connect_db()
+    await cl_data_db.connect_db()
+
+    try:
+        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
+            await ip_blocker(conn_obj=request)
+            return Unauthorized()
+        
+        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
+        logger.info(usr_data)
+        usr_data_dict = next(iter(usr_data.values()))
+        logger.info(usr_data_dict)
+
+        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
+
+        if api_data is None:
+            return jsonify(error="Resource not found"), 404
+            
+        api_data_dict = next(iter(api_data.values()))
+        logger.info(api_data_dict)
+
+        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
+
+        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
+            await ip_blocker(conn_obj=request)
+            return Unauthorized()
+            
+        data = await request.get_json()
+
+        async with httpx.AsyncClient() as client:
+
+            headers = {'content-type': 'application/json'}
+                            
+            edit_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/edit", json=data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+
+            if edit_resp.status_code == 200:
+                edit_data = await edit_resp.json()
+                return jsonify(edit_data)
+            else:
+                return jsonify({'status':'error'}), 400
+            
+    except ExpiredSignatureError:
+        logger.warning("JWT expired, need to refresh token")
+        return ExpiredSignatureError()
+    except InvalidTokenError as e:
+        logger.error(f"JWT invalid: {e}")
+        return InvalidTokenError()
         
 @app.route('/resetapi', methods=['POST'])
 async def resetapi():
@@ -1306,8 +1391,8 @@ async def createapi():
     except Exception:
         return jsonify("Error, occurred"), 400
     
-@app.route('/alertcfg', methods=['POST'])
-async def alertcfg():
+@app.route('/notifications', methods=['POST'])
+async def notifications():
     jwt_token = request.cookies.get("access_token")
     sess_id = request.args.get('sess_id')
 
@@ -1395,6 +1480,63 @@ async def alertcfg():
         return InvalidTokenError()
     except Exception():
         return jsonify("Error, occurred"), 400
+
+@app.route('/alerts', methods=['POST'])
+async def alerts():
+    jwt_token = request.cookies.get("access_token")
+    sess_id = request.args.get('sess_id')   
+
+    if not jwt_token or not sess_id:
+        await ip_blocker(conn_obj=request)
+        return jsonify(error="Missing required request data"), 400
+    
+    await cl_sess_db.connect_db()
+
+    if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
+        await ip_blocker(conn_obj=request)
+        return Unauthorized()
+    
+    try:
+        usr_sess_data = await cl_sess_db.get_all_data(match=f'*{sess_id}*')
+        logger.info(usr_sess_data)
+        usr_data_dict = next(iter(usr_sess_data.values()))
+        logger.info(usr_data_dict)
+
+        jwt_key = usr_data_dict.get(f'usr_jwt_secret')
+        logger.info(jwt_key)
+        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+        logger.info(decoded_token)
+
+        if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
+            await ip_blocker(conn_obj=request)
+            return Unauthorized()
+        
+        data = await request.get_json()
+        logger.info(data)
+
+        match data['action']:
+            case 'ack':
+                if await cl_data_db.upload_db_data(id=data['id'], data={'ack': 'seen'}) > 0:
+                    return jsonify({'status':'alert acknowledged'}), 200
+                else:
+                    return jsonify({'status':'alert acknowledgment failed'}), 400
+            case 'rslv':
+                if await cl_data_db.upload_db_data(id=data['id'], data={'rslv': 'resolved'}) > 0:
+                    return jsonify({'status':'alert resolved'}), 200
+                else:
+                    return jsonify({'status':'alert resolution failed'}), 400
+
+    except ExpiredSignatureError:
+        logger.warning("JWT expired, need to refresh token")
+        await ip_blocker(conn_obj=request)
+        return ExpiredSignatureError()
+    except InvalidTokenError as e:
+        logger.error(f"JWT invalid: {e}")
+        await ip_blocker(conn_obj=request)
+        return InvalidTokenError()
+    except Exception():
+        return jsonify("Error, occurred"), 400
+
     
 @app.errorhandler(Unauthorized)
 async def unauthorized():

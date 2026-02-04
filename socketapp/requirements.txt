@@ -20,3 +20,4 @@ aiosmtplib==4.0.2
 brevo-python==1.2.0
 httpx==0.28.1
 requests==2.32.5
+python-crontab==3.3.0

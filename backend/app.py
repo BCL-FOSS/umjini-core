@@ -1411,8 +1411,8 @@ async def createapi():
     except Exception:
         return jsonify("Error, occurred"), 400
     
-@app.route('/notifications', methods=['POST'])
-async def notifications():
+@app.route('/notificationscfg', methods=['POST'])
+async def notificationscfg():
     jwt_token = request.cookies.get("access_token")
     sess_id = request.args.get('sess_id')
 
@@ -1501,8 +1501,8 @@ async def notifications():
     except Exception():
         return jsonify("Error, occurred"), 400
 
-@app.route('/alerts', methods=['POST'])
-async def alerts():
+@app.route('/alertscfg', methods=['POST'])
+async def alertscfg():
     jwt_token = request.cookies.get("access_token")
     sess_id = request.args.get('sess_id')   
 

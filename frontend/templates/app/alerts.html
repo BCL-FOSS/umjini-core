@@ -293,7 +293,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   alertAckInitButton.addEventListener("click", async function() {
-    const endpoint = `https://${mntrURL}/alerts?usr={{ cur_usr }}`;
+    const endpoint = `https://${mntrURL}/alertscfg?usr={{ cur_usr }}`;
     const payload = { 'id': this.dataset.id,
                          'action': 'ack' };
     
@@ -309,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   alertRslvInitButton.addEventListener("click", async function() {
-    const endpoint = `https://${mntrURL}/alerts?usr={{ cur_usr }}`;
+    const endpoint = `https://${mntrURL}/alertscfg?usr={{ cur_usr }}`;
     const payload = { 'id': this.dataset.id,
                          'action': 'rslv' };
     

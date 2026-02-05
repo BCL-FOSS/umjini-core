@@ -290,7 +290,7 @@
 
       const email = document.getElementById('email-id').value;
 
-      resp = await fetch(`https://${mntrURL}/notifications?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {
@@ -318,7 +318,7 @@
       const email = document.getElementById('jira-id').value;
       const authToken = document.getElementById('jira-token').value;
 
-      resp = await fetch(`https://${mntrURL}/notifications?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {
@@ -346,7 +346,7 @@
       const slackToken = document.getElementById('slack-token').value;
       const slackChannelID =  document.getElementById('slack-channel-id').value;
 
-      resp = await fetch(`https://${mntrURL}/notifications?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {

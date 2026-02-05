@@ -18,7 +18,7 @@ umj.baughlabs.tech {
 		reverse_proxy agentapp:4000
 	}
 
-	handle /agent* {
+	handle /smartbot* {
 		reverse_proxy agentapp:4000
 	}
 
@@ -42,7 +42,15 @@ umj.baughlabs.tech {
 		reverse_proxy agentapp:4000
 	}
 
-	handle /netvis* {
+	handle /tasks* {
+		reverse_proxy agentapp:4000
+	}
+
+	handle /alerts* {
+		reverse_proxy agentapp:4000
+	}
+
+	handle /chats* {
 		reverse_proxy agentapp:4000
 	}
 
@@ -87,6 +95,14 @@ umj.baughlabs.tech {
 	}
 
 	handle /createapi* {
+		reverse_proxy socketapp:5000
+	}
+
+	handle /notificationscfg* {
+		reverse_proxy socketapp:5000
+	}
+
+	handle /alertscfg* {
 		reverse_proxy socketapp:5000
 	}
 

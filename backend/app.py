@@ -301,7 +301,8 @@ async def _receive() -> None:
                                     "from": "agent",
                                     "msg": final_output,
                                     "url": message["url"],
-                                    "usr_id": message['usr_id']
+                                    "usr_id": message['usr_id'],
+                                    "final_output": 'y'
                                 }
                         
                                 await broker.publish(message=json.dumps(agnt_msg_data))

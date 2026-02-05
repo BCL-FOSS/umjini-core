@@ -202,10 +202,10 @@
           </a>
         </li>
         <li class="nav-item mt-3">
-          <h6 class="ps-4 ms-2 text-uppercase text-xs font-weight-bolder opacity-6 text-white">AI Assistant</h6>
+          <h6 class="ps-4 ms-2 text-uppercase text-xs font-weight-bolder opacity-6 text-white">AI Hub</h6>
         </li>
         <li class="nav-item">
-          <a class="nav-link  " href="{{ url_for('agent', cmp_id=cmp_id, obsc=obsc_key) }}">
+          <a class="nav-link  " href="{{ url_for('smartbot', cmp_id=cmp_id, obsc=obsc_key) }}">
             <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
               <svg width="12px" height="12px" viewBox="0 0 42 42" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
                 <title>office</title>
@@ -221,7 +221,7 @@
                 </g>
               </svg>
             </div>
-            <span class="text-white nav-link-text ms-1">Chat</span>
+            <span class="text-white nav-link-text ms-1">SmartBot</span>
           </a>
         </li>
         <li class="nav-item">
@@ -241,7 +241,7 @@
                 </g>
               </svg>
             </div>
-            <span class="text-white nav-link-text ms-1">History</span>
+            <span class="text-white nav-link-text ms-1">Chat History</span>
           </a>
         </li>
         <li class="nav-item mt-3">
@@ -452,6 +452,18 @@
     // Use JWT in Sec-WebSocket-Protocol
     let ws = new WebSocket(wsURLMon);
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {});
+    // close all modals but the one you want to open
+    const $modals = document.querySelectorAll('.modal');
+    $modals.forEach(modal => {
+      modal.addEventListener('show.bs.modal', function() {
+        $modals.forEach(_modal => {
+          let currentModal = bootstrap.Modal.getInstance(_modal);
+          if (this !== _modal && currentModal) {
+            currentModal.hide();
+          }
+        });
+      });
+    });
 
     function connectWebSocket() {
 
@@ -493,11 +505,23 @@
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+
           if (data.msg && data.from) {
             if (data.usr_id === curUsrID){
               console.info(data);
               const chatWin = document.getElementById(`chat-${data.url}`);
-              if (chatWin) appendMessage(chatWin, data.from, data.msg);
+              if(data.final_output){
+                if (chatWin) appendMessage(chatWin, data.from, data.msg);
+                const spinner = document.getElementById('smartbot-spinner');
+                const buttonText = document.getElementById('smartbot-send-txt');
+                const smartbotSend = document.getElementById('chat-send');
+                spinner.classList.remove('d-inline-block');
+                spinner.classList.add('d-none');
+                buttonText.textContent = "Send";
+                smartbotSend.disabled = false;
+              } else {
+                if (chatWin) appendMessage(chatWin, data.from, data.msg);
+              } 
             } 
           }
 
@@ -598,6 +622,9 @@
     const prbNetVisModal = document.getElementById('probeNetVisModal');
     const prbDelModal = document.getElementById('probeDeleteModal');
     const prbTskModal = document.getElementById('probeTaskConfigModal');
+    const taskToggleInit = document.getElementById('task-toggle-init');
+    const taskRescheduleInit = document.getElementById('task-reschedule-init');
+    const taskDeleteInit = document.getElementById('task-delete-init');
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -638,9 +665,29 @@
 
     // send message
     function sendMessage() {
+      const spinner = document.getElementById('smartbot-spinner');
+      const buttonText = document.getElementById('smartbot-send-txt');
+      const smartbotSend = document.getElementById('chat-send');
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Processing...";
+      smartbotSend.disabled = true;
+                
       if (!selectedValue || !chatInput.value.trim()) {
         alert('Make a probe selection or enter a chat query.');
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Send";
+        smartbotSend.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Missing Probe selection or Chat Query';
+        document.getElementById('notif-modal-text').innerText = 'Make a probe selection or enter a chat query.. Please provide the necessary information and try again.';
+
+        notificationModal.show();
       }
+
       const msg = chatInput.value.trim();
       chatInput.value = "";
 
@@ -658,7 +705,24 @@
       appendUserMessage(chatWin, "user", msg);
     }
 
-    function sendTraceTask() {
+    // LLM Chat event listeners
+    chatSend.addEventListener("click", sendMessage);
+
+    // Probe Task init event listeners
+    trcrtInit.addEventListener("click", async function () {
+      // Select the spinner element within the button
+      const spinner = this.querySelector('.spinner-grow');
+      // Select the text element within the button
+      const buttonText = this.querySelector('.prb-tsk-trc-button-text');
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Tracing...";
+      
+      // Disable the button
+      this.disabled = true;
+
       const traceType = document.getElementById("trcrt-dropdown").value;
       const traceTarget = document.getElementById("trcrt-target").value;
       const traceDNSServer = document.getElementById("trcrt-dns-test-server").value;
@@ -667,7 +731,17 @@
       const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
 
       if (!traceType || !traceTarget) {
-        alert('Missing required traceroute parameters.');
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Test";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Missing Parameters';
+        document.getElementById('notif-modal-text').innerText = 'Missing required task parameter(s). Please provide the necessary information and try again.';
+
+        notificationModal.show();
       }
 
       let taskData = {
@@ -710,21 +784,51 @@
       }
 
       ws.send(JSON.stringify(taskData));
-      prbTskModal.hide()
 
+      spinner.classList.remove('d-inline-block');
+      spinner.classList.add('d-none');
+      buttonText.textContent = "Trace";
+      
+      // Enable the button
+      this.disabled = false;
+
+      document.getElementById('notificationModalLabel').textContent = 'Traceroute Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Network path trace task initiated. You will receive a notification when the trace is complete and the results are available for review.';
 
       notificationModal.show();
-    }
+    });
 
-    function sendIperfTask() {
+    iperfInit.addEventListener("click", async function () {
+      // Select the spinner element within the button
+      const spinner = this.querySelector('.spinner-grow');
+      // Select the text element within the button
+      const buttonText = this.querySelector('.prb-tsk-spd-button-text');
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Testing...";
+      
+      // Disable the button
+      this.disabled = true;
+
       const spdtstType = document.getElementById("spdtst-dropdown").value;
       const spdtstClientOptions = document.getElementById("spdtst-clnt-options").value;
       const spdtstOptions = document.getElementById("spdtst-options").value;
       const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
 
       if (!spdtstType) {
-        alert('Missing required performance test parameters.');
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Test";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Missing Parameters';
+        document.getElementById('notif-modal-text').innerText = 'Missing required task parameter(s). Please provide the necessary information and try again.';
+
+        notificationModal.show();
       }
 
       let taskData = {
@@ -760,14 +864,35 @@
       }
 
       ws.send(JSON.stringify(taskData));
-      prbTskModal.hide()
 
+      spinner.classList.remove('d-inline-block');
+      spinner.classList.add('d-none');
+      buttonText.textContent = "Test";
+      
+      // Enable the button
+      this.disabled = false;
+
+      document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
 
       notificationModal.show();
-    }
+      
+    });
 
-    function sendScanTask() {
+    scanInit.addEventListener("click", async function () {
+      // Select the spinner element within the button
+      const spinner = this.querySelector('.spinner-grow');
+      // Select the text element within the button
+      const buttonText = this.querySelector('.prb-tsk-spd-button-text');
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Scanning...";
+      
+      // Disable the button
+      this.disabled = true;
+
       const scanType = document.getElementById("scan-dropdown").value;
       const scanTarget = document.getElementById("scan-target").value;
       const scanInterface = document.getElementById("scan-interface").value;
@@ -775,7 +900,17 @@
       const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
 
       if (!scanType && !scanTarget) {
-        alert('Missing required performance test parameters.');
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Missing Parameters';
+        document.getElementById('notif-modal-text').innerText = 'Missing required task parameter(s). Please provide the necessary information and try again.';
+
+        notificationModal.show();
       }
 
       let taskData = {
@@ -814,14 +949,35 @@
       }
 
       ws.send(JSON.stringify(taskData));
-      prbTskModal.hide()
 
+      spinner.classList.remove('d-inline-block');
+      spinner.classList.add('d-none');
+      buttonText.textContent = "Scan";
+      
+      // Enable the button
+      this.disabled = false;
+
+      document.getElementById('notificationModalLabel').textContent = 'Scan Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Network scan task initiated. You will receive a notification when the scan is complete and the results are available for review.';
 
       notificationModal.show();
-    }
+      
+    });
 
-    function sendPcapTask() {
+    pcapInit.addEventListener("click", async function () {
+      // Select the spinner element within the button
+      const spinner = this.querySelector('.spinner-grow');
+      // Select the text element within the button
+      const buttonText = this.querySelector('.prb-tsk-spd-button-text');
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Scanning...";
+      
+      // Disable the button
+      this.disabled = true;
+
       const pcapType = document.getElementById("pcap-dropdown").value;
       const pcapInterface = document.getElementById("pcap-interface").value;
       const pcapCount = document.getElementById("pcap-count-target").value;
@@ -829,7 +985,17 @@
       const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
 
       if (!pcapType) {
-        alert('Missing required performance test parameters.');
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Missing Parameters';
+        document.getElementById('notif-modal-text').innerText = 'Missing required task parameter(s). Please provide the necessary information and try again.';
+
+        notificationModal.show();
       }
 
       let taskData = {
@@ -872,22 +1038,47 @@
       }
 
       ws.send(JSON.stringify(taskData));
-      prbTskModal.hide()
 
+      spinner.classList.remove('d-inline-block');
+      spinner.classList.add('d-none');
+      buttonText.textContent = "Scan";
+      
+      // Enable the button
+      this.disabled = false;
+
+      document.getElementById('notificationModalLabel').textContent = 'Packet Capture Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Packet capture task initiated. You will receive a notification when the capture is complete and the results are available for review.';
 
       notificationModal.show();
       
-    }
+    });
 
-    // LLM Chat event listeners
-    chatSend.addEventListener("click", sendMessage);
+    taskToggleInit.addEventListener("click", async function () {
+      const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
+      ws.send(JSON.stringify({
+        "act": "prb_task_toggle",
+        "prb_id": current_pid,
+        "oper": "cmd"
+      }));
+    });
 
-    // Probe Task init event listeners
-    trcrtInit.addEventListener("click", sendTraceTask);
-    iperfInit.addEventListener("click", sendIperfTask);
-    scanInit.addEventListener("click", sendScanTask);
-    pcapInit.addEventListener("click", sendPcapTask);
+    taskRescheduleInit.addEventListener("click", async function () {
+      const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
+      ws.send(JSON.stringify({
+        "act": "prb_task_reschedule",
+        "prb_id": current_pid,
+        "oper": "cmd"
+      }));
+    });
+
+    taskDeleteInit.addEventListener("click", async function () {
+      const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
+      ws.send(JSON.stringify({
+        "act": "prb_task_delete",
+        "prb_id": current_pid,
+        "oper": "cmd"
+      }));
+    });
 
     chatInput.addEventListener("keypress", e => {
       if (e.key === "Enter") sendMessage();

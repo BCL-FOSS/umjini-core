@@ -388,10 +388,10 @@ async def dashboard(cmp_id, obsc):
 
     return await render_template("app/dashboard.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
 
-@app.route('/agent', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/agent/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@app.route('/smartbot', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
+@app.route("/smartbot/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
-async def agent(cmp_id, obsc):
+async def smartbot(cmp_id, obsc):
     cur_usr_id = current_client.auth_id
 
     await cl_auth_db.connect_db()
@@ -419,7 +419,7 @@ async def agent(cmp_id, obsc):
     if probe_data is None:
         probe_data = {"":""}
 
-    return await render_template("app/agent.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=cl_sess_data_dict.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, data=data)
+    return await render_template("app/smartbot.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=cl_sess_data_dict.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, data=data)
 
 @app.route('/settings', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/settings/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])

@@ -91,7 +91,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="probeNetVisModalLabel">Network Visualizer</h5>
+        <h5 class="modal-title" id="probeNetVisModalLabel">Probe Network Map</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -142,7 +142,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="probeDeleteModalLabel">Modal title</h5>
+        <h5 class="modal-title" id="probeDeleteModalLabel">Delete Probe</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -151,8 +151,8 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-danger" id="delete-probe">
-          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-          <span class="button-text">Delete</span>
+          <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+          <span class="prb-delete-button-text">Delete</span>
         </button>
       </div>
     </div>
@@ -215,7 +215,10 @@
                   <div class="form-text">For traceroute only (optional)</div>
                 </div>
                 <div class="d-grid">
-                  <button type="button" class="btn btn-dark mb-0" id="trcrt-init">Start Traceroute</button>
+                  <button type="button" class="btn btn-dark mb-0" id="trcrt-init">
+                    <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="prb-tsk-trc-button-text">Start Traceroute</span>
+                  </button>
                 </div>
               </form> 
             </div>
@@ -241,7 +244,10 @@
                   <div class="form-text">NOTICE: For probes set in Client mode only</div>
                 </div>
                 <div class="d-grid">
-                  <button type="button" class="btn btn-dark mb-0" id="iperf-init">Start Perfomance Test</button>
+                  <button type="button" class="btn btn-dark mb-0" id="iperf-init">
+                    <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="prb-tsk-spd-button-text">Start Performance Test</span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -276,7 +282,10 @@
                   <div class="form-text" id="scan-addon4">Options for the nmap command</div>
                 </div>
                 <div class="d-grid">
-                  <button type="button" class="btn btn-dark mb-0" id="scan-init">Start Scan</button>
+                  <button type="button" class="btn btn-dark mb-0" id="scan-init">
+                    <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="prb-tsk-scn-button-text">Start Scan</span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -306,7 +315,10 @@
                   <input type="text" class="form-control" placeholder="Capture duration in seconds" id="pcap-duration-target">
                 </div>
                 <div class="d-grid">
-                  <button type="button" class="btn btn-dark mb-0" id="pcap-init">Start Packet Capture</button>
+                  <button type="button" class="btn btn-dark mb-0" id="pcap-init">
+                    <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+                    <span class="prb-tsk-pcap-button-text">Start Packet Capture</span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -654,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   deleteProbeButton.addEventListener("click", async function() {
     const probeId = deleteProbeButton.dataset.id;
+    const probeName = deleteProbeButton.dataset.name;
     if (!probeId) {
       alert("Probe ID not found!");
       return;
@@ -664,26 +677,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       // Select the spinner element within the button
-      const spinner = this.querySelector('.spinner-border');
+      const spinner = this.querySelector('.spinner-grow');
       // Select the text element within the button
-      const buttonText = this.querySelector('.button-text');
+      const buttonText = this.querySelector('.prb-delete-button-text');
 
       // Show the spinner and hide the text
       spinner.classList.remove('d-none');
       spinner.classList.add('d-inline-block');
-      buttonText.classList.add('d-none');
+      buttonText.textContent = "Deleting...";
       
       // Disable the button
       this.disabled = true;
 
       const resp = await fetch(endpoint, {method: "POST", credentials:"same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
       if (resp.ok) {
-        alert("Probe deletion successful");
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Delete";
+      
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = "Probe Deletion Success";
+
+        document.getElementById('notif-modal-text').textContent = `Probe ${probeName} deletion successful!`;
+
+        notificationModal.show();
+
         if (deleteBsModal) {
           deleteBsModal.hide();
         }
+
       } else {
-        alert("Probe deletion failed");
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Delete";
+
+        document.getElementById('notificationModalLabel').textContent = "Probe Deletion Failed";
+
+        document.getElementById('notif-modal-text').textContent = `Probe ${probeName} deletion failed!`;
+
+        notificationModal.show();
+
+        if (deleteBsModal) {
+          deleteBsModal.hide();
+        }
       }
     } catch (err) {
       console.error("Error deleting probe:", err);

@@ -61,7 +61,10 @@
               </div>
               <div class="input-group">
                 <input type="text" id="chat-input" class="form-control" placeholder="Type a message...">
-                <button id="chat-send" class="btn btn-primary">Send</button>
+                <button id="chat-send" class="btn btn-primary">
+                  <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true" id="smartbot-spinner"></span>
+                  <span class="smartbot-button-text" id="smartbot-send-txt">Send</span>
+                </button>
               </div>
             </div>
           </div> 

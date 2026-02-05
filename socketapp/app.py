@@ -380,6 +380,20 @@ async def _receive() -> None:
 
                         await broker.publish(message=json.dumps(probe_conn_error))
 
+                case "prb_task_cnfrm":  
+                    logger.info(f"Received probe task confirmation message: {message}.")
+                    
+                    message['timestamep'] = datetime.now(tz=timezone.utc).isoformat()
+                    message['alert_type'] = 'task_confirmation'
+                    
+                    task_id = f"task:{message['name']}:{message['prb_name']}:{message['timestamp']}"
+
+                    message['id'] = task_id
+                    
+                    if await cl_data_db.upload_db_data(id=task_id, data=message) > 0:
+                        logger.info(f"Task data uploaded successfully with id: {task_id}")
+                        await broker.publish(message=json.dumps(message))
+
                 case "prb_task_rslt":
                     final_output = ""
                     probe_task_result_data = {'site': message['site'],
@@ -421,7 +435,7 @@ async def _receive() -> None:
                     probe_task_result_data['id'] = alert_id
 
                     if await cl_data_db.upload_db_data(id=alert_id, data=probe_task_result_data) > 0:
-                        logger.info(f"Task result data uploaded successfully with id: task_result:{probe_task_result_data['prb_id']}:{probe_task_result_data['timestamp']}")
+                        logger.info(f"Task result data uploaded successfully with id: {alert_id}")
                         await broker.publish(message=json.dumps(probe_task_result_data))
                 case _:
                     pass
@@ -554,7 +568,12 @@ async def check_ip_ws():
 @rate_exempt
 async def heartbeat(probe_id):
     try:
+        if probe_id is None:
+            await ip_blocker(conn_obj=websocket, auto_ban=True)
+            await websocket.close()
+
         monitor_task = None
+
         await cl_data_db.connect_db()  
 
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:

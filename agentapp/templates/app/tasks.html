@@ -11,7 +11,7 @@
     <div class="col-12">
       <div class="card mb-4">
         <div class="card-header pb-0">
-          <h6>All Alerts</h6>
+          <h6>All Tasks</h6>
         </div>
         <div class="card-body px-0 pt-0 pb-2">
           <div class="table-responsive">
@@ -20,70 +20,82 @@
                 <tr>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Type</th>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Name</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Enabled</th>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Site</th>
                   <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Timestamp</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {% for alert in all_alerts.values() %}
+                {% for task in all_tasks.values() %}
                 <tr>
                   <td>
                     <div class="d-flex px-2">
                       <div>
-                        <img src="{{ url_for('static', filename='img/bcl/'+alert.alert_type+'.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
+                        <img src="{{ url_for('static', filename='img/bcl/task_item.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
                       </div>
                       <div class="my-auto">
-                        <h6 class="mb-0 text-xs">{{ alert.alert_type }}</h6>
+                        <h6 class="mb-0 text-xs">{{ task.task_type }}</h6>
                       </div>
                     </div>
                   </td>
                   <td>
-                    <p class="text-xs font-weight-bold mb-0">{{ alert.name }}</p>
+                    <p class="text-xs font-weight-bold mb-0">{{ task.name }}</p>
                   </td>
+                  <td>
+                    <div class="d-flex px-2">
+                      <div>
+                        <img src="{{ url_for('static', filename='img/bcl/'+task.enabled+'.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
                   <td>
                     <span class="badge badge-dot me-4">
                       <i class="bg-info"></i>
-                      <span class="text-dark text-xs">{{ alert.site }}</span>
+                      <span class="text-dark text-xs">{{ task.site }}</span>
                     </span>
                   </td>
                   <td class="align-middle text-center">
                     <div class="d-flex align-items-center">
-                      <span class="me-2 text-xs">{{ alert.timestamp }}</span>
+                      <span class="me-2 text-xs">{{ task.timestamp }}</span>
                     </div>
                   </td>
 
                   <td class="align-middle">
                     <div class="input-group mb-3">
-                      <button type="button" class="btn btn-sm btn-info ms-2 alert-details-btn"
-                          data-name="{{ alert.name|e }}"
-                          data-msg="{{ alert.msg|e }}"
-                          data-site="{{ alert.site|e }}"
-                          data-prb_id="{{ alert.prb_id|e }}"
-                          data-timestamp="{{ alert.timestamp|e }}"
-                          data-alert_type="{{ alert.alert_type|e }}"
-                          data-id="{{ alert.id }}">
-                        View Details
+                      <button type="button" class="btn btn-sm btn-info ms-2 task-toggle-btn"
+                          data-name="{{ task.name|e }}"
+                          data-site="{{ task.site|e }}"
+                          data-prb_id="{{ task.prb_id|e }}"
+                          data-timestamp="{{ task.timestamp|e }}"
+                          data-task_type="{{ task.task_type|e }}"
+                          data-id="{{ task.id }}"
+                          data-enabled="{{ task.enabled|e }}"
+                          data-comment="{{ task.comment|e }}">
+                        Enable/Disable
                       </button>
-                      <button type="button" class="btn btn-sm btn-info ms-2 alert-acknowledge-btn"
-                          data-name="{{ alert.name|e }}"
-                          data-msg="{{ alert.msg|e }}"
-                          data-site="{{ alert.site|e }}"
-                          data-prb_id="{{ alert.prb_id|e }}"
-                          data-timestamp="{{ alert.timestamp|e }}"
-                          data-alert_type="{{ alert.alert_type|e }}"
-                          data-id="{{ alert.id }}">
-                        Acknowledge
+                      <button type="button" class="btn btn-sm btn-info ms-2 task-reschedule-btn"
+                          data-name="{{ task.name|e }}"
+                          data-site="{{ task.site|e }}"
+                          data-prb_id="{{ task.prb_id|e }}"
+                          data-timestamp="{{ task.timestamp|e }}"
+                          data-task_type="{{ task.task_type|e }}"
+                          data-id="{{ task.id }}"
+                          data-enabled="{{ task.enabled|e }}"
+                          data-comment="{{ task.comment|e }}">
+                        Reschedule
                       </button>
-                      <button type="button" class="btn btn-sm btn-info ms-2 alert-resolve-btn"
-                          data-name="{{ alert.name|e }}"
-                          data-msg="{{ alert.msg|e }}"
-                          data-site="{{ alert.site|e }}"
-                          data-prb_id="{{ alert.prb_id|e }}"
-                          data-timestamp="{{ alert.timestamp|e }}"
-                          data-alert_type="{{ alert.alert_type|e }}"
-                          data-id="{{ alert.id }}">
-                        Resolve
+                      <button type="button" class="btn btn-sm btn-info ms-2 task-delete-btn"
+                          data-name="{{ task.name|e }}"
+                          data-site="{{ task.site|e }}"
+                          data-prb_id="{{ task.prb_id|e }}"
+                          data-timestamp="{{ task.timestamp|e }}"
+                          data-task_type="{{ task.task_type|e }}"
+                          data-id="{{ task.id }}"
+                          data-enabled="{{ task.enabled|e }}"
+                          data-comment="{{ task.comment|e }}">
+                        Delete
                       </button>
                     </div>
                   </td>
@@ -99,60 +111,117 @@
   </div>
 </div>
 
-<div class="modal fade" id="alertViewModal" tabindex="-1" aria-labelledby="alertViewModalLabel" aria-hidden="true">
+<div class="modal fade" id="taskToggleModal" tabindex="-1" aria-labelledby="taskToggleModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="alertViewModalLabel">Alert Details</h5>
+        <h5 class="modal-title" id="taskToggleModalLabel">Toggle Task</h5>
        
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p id="alert-msg"></p>
+        <p id="task-toggle-msg"></p>
       
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-toggle-init">Enable/Disable</button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="alertAckModal" tabindex="-1" aria-labelledby="alertAckModalLabel" aria-hidden="true">
+<div class="modal fade" id="taskRescheduleModal" tabindex="-1" aria-labelledby="taskRescheduleModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="alertAckModalLabel">Alert Acknowledge</h5>
+        <h5 class="modal-title" id="taskRescheduleModalLabel">Reschedule Task</h5>
        
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p id="alert-ack-msg"></p>
-      
+        <form method="POST">
+          <div class="form-floating mb-3">
+            <h6 class="form-label bold">Task Schedule Settings</h6>
+            <div class="row mb-3">
+              <div class="col-6">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="llmAnalysisSwitch">
+                  <label class="form-check-label" for="llmAnalysisSwitch">Enable LLM Analysis</label>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="automationSwitch">
+                  <label class="form-check-label" for="automationSwitch">Enable Agent Automation</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-floating mb-3">
+            <h6 class="form-label bold">Task Run Schedule</h6>
+            <p class="form-text">Use the fields below to set up a custom schedule for the selected task. Enter times ascomma-separated values or ranges.</p>
+            <div class="row mb-3">
+                <div class="col-12">
+                  <label class="form-label">Choose day(s) of week to run task. Available values: 0 (Sunday) to 6 (Saturday).</label>
+                  <input class="form-control" type="text" id="task-days">
+                  <div class="form-text">To run every Sunday, Wednesday and Saturday enter as such: 0,3,6.</div>
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose minute(s) to run task. Available values: 0 to 59.</label>
+                  <input class="form-control" type="text" id="task-minutes">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 5,50,5). The task would run every 5 minutes from 5 to 50. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose day(s) of month to run task. Available values: 1 to 31.</label>
+                  <input class="form-control" type="text" id="task-dom">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,31,1). The task would run every day from 1 to 31. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose month(s) to run task. Available values: 1 to 12.</label>
+                  <input class="form-control" type="text" id="task-months">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,12,1). The task would run every month from January to December. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose hour(s) to run task. Available values: 0 to 23.</label>
+                  <input class="form-control" type="text" id="task-hours">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 0,23,1). The task would run every hour from 0 to 23. </div> 
+                </div>  
+            </div>
+          </div>
+        </form>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="alert-ack-init">Acknowledge</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-reschedule-init">Reschedule</button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="alertRslvModal" tabindex="-1" aria-labelledby="alertRslvModalLabel" aria-hidden="true">
+<div class="modal fade" id="taskDeleteModal" tabindex="-1" aria-labelledby="taskDeleteModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="alertRslvModalLabel">Alert Resolve</h5>
+        <h5 class="modal-title" id="taskDeleteModalLabel">Delete Task</h5>
        
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p id="alert-rslv-msg"></p>
+        <p id="task-delete-msg"></p>
       
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="alert-rslv-init">Resolve</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-delete-init">Resolve</button>
       </div>
     </div>
   </div>
@@ -178,108 +247,96 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Alert action buttons
-  const alertViewButtons = document.querySelectorAll(".alert-details-btn");
-  const alertAckButtons = document.querySelectorAll(".alert-acknowledge-btn");
-  const alertRslvButtons = document.querySelectorAll(".alert-resolve-btn");
-
-  // Alert modal action buttons
-  const alertAckInitButton = document.getElementById("alert-ack-init");
-  const alertRslvInitButton = document.getElementById("alert-rslv-init");
+  const taskToggleButtons = document.querySelectorAll(".task-toggle-btn");
+  const taskRescheduleButtons = document.querySelectorAll(".task-reschedule-btn");
+  const taskDeleteButtons = document.querySelectorAll(".task-delete-btn");
 
   // Alert Modals
-  const alertViewModalEl = document.getElementById('alertViewModal');
-  let alertViewModal = null;
-  if (alertViewModalEl) {
-    alertViewModal = new bootstrap.Modal(alertViewModalEl, {});
+  const taskToggleModalEl = document.getElementById('taskToggleModal');
+  let taskToggleModal = null;
+  if (taskToggleModalEl) {
+    taskToggleModal = new bootstrap.Modal(taskToggleModalEl, {});
+  } 
+
+  const taskRescheduleModalEl = document.getElementById('taskRescheduleModal');
+  let taskRescheduleModal = null;
+  if (taskRescheduleModalEl) {
+    taskRescheduleModal = new bootstrap.Modal(taskRescheduleModalEl, {});
   }
 
-  const alertAckModalEl = document.getElementById('alertAckModal');
-  let alertAckModal = null;
-  if (alertAckModalEl) {    
-    alertAckModal = new bootstrap.Modal(alertAckModalEl, {});
-  }
-
-  const alertRslvModalEl = document.getElementById('alertRslvModal');
-  let alertRslvModal = null;
-  if (alertRslvModalEl) {    
-    alertRslvModal = new bootstrap.Modal(alertRslvModalEl, {});
+  const taskDeleteModalEl = document.getElementById('taskDeleteModal');
+  let taskDeleteModal = null;
+  if (taskDeleteModalEl) {
+    taskDeleteModal = new bootstrap.Modal(taskDeleteModalEl, {});
   }
 
   // View Details button handler
-  alertViewButtons.forEach(btn => {
+
+  taskToggleButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation(); // prevent row click selection (if undesired)
       const name = btn.dataset.name || '';
-      const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
       const prb_id = btn.dataset.prb_id || '';
       const timestamp = btn.dataset.timestamp || '';
-      const alert_type = btn.dataset.alert_type || '';
+      const task_type = btn.dataset.task_type || '';
+      const enabled = btn.dataset.enabled || '';
+      const comment = btn.dataset.comment || '';
       const id = btn.dataset.id || '';
       // Fill modal fields
-      document.getElementById('alertViewModalLabel').textContent = `Alert Details - ${name} ${alert_type}`;
-      document.getElementById('alert-msg').textContent = msg;
-      if (alertViewModal) {
-        alertViewModal.show();
+      document.getElementById('taskToggleModalLabel').textContent = `Toggle Task - ${name} ${task_type}`;
+      document.getElementById('task-toggle-msg').textContent = `Are you sure you want to toggle the task: ${name} currently set to ${enabled}`;
+      if (taskToggleModal) {
+        taskToggleModal.show();
       } else {
-        console.warn("Bootstrap Modal not available - cannot show alert view modal.");
+        console.warn("Bootstrap Modal not available - cannot show task toggle modal.");
       }
     });
   });
 
-  // Acknowledge button handler
-  alertAckButtons.forEach(btn => {
+  taskRescheduleButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation(); // prevent row click selection (if undesired)
       const name = btn.dataset.name || '';
-      const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
       const prb_id = btn.dataset.prb_id || '';
       const timestamp = btn.dataset.timestamp || '';
-      const alert_type = btn.dataset.alert_type || '';
+      const task_type = btn.dataset.task_type || '';
+      const enabled = btn.dataset.enabled || '';
+      const comment = btn.dataset.comment || '';
       const id = btn.dataset.id || '';
       // Fill modal fields
-      document.getElementById('alertAckModalLabel').textContent = `Acknowledge Alert - ${name} ${alert_type}`;
-      document.getElementById('alert-ack-msg').textContent = `Are you sure you want to acknowledge the alert: ${msg}`;
-      if (alertAckModal) {
-        alertAckModal.show();
+      document.getElementById('taskRescheduleModalLabel').textContent = `Reschedule Task - ${name} ${task_type}`;
+      // You can also fill in the current schedule settings if needed
+      if (taskRescheduleModal) {
+        taskRescheduleModal.show();
       } else {
-        console.warn("Bootstrap Modal not available - cannot show alert acknowledge modal.");
+        console.warn("Bootstrap Modal not available - cannot show task reschedule modal.");
       }
     });
-  });
+  }); 
 
-  // Resolve button handler
-  alertRslvButtons.forEach(btn => {
+  taskDeleteButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation(); // prevent row click selection (if undesired)
       const name = btn.dataset.name || '';
-      const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
       const prb_id = btn.dataset.prb_id || '';
       const timestamp = btn.dataset.timestamp || '';
-      const alert_type = btn.dataset.alert_type || '';
+      const task_type = btn.dataset.task_type || '';
+      const enabled = btn.dataset.enabled || '';
+      const comment = btn.dataset.comment || '';
       const id = btn.dataset.id || '';
       // Fill modal fields
-      document.getElementById('alertRslvModalLabel').textContent = `Resolve Alert - ${name} ${alert_type}`;
-      document.getElementById('alert-rslv-msg').textContent = `Are you sure you want to resolve the alert: ${msg}`;
-      if (alertRslvModal) {
-        alertRslvModal.show();
+      document.getElementById('taskDeleteModalLabel').textContent = `Delete Task - ${name} ${task_type}`;
+      document.getElementById('task-delete-msg').textContent = `Are you sure you want to delete the task: ${name} currently set to ${enabled}`;
+      if (taskDeleteModal) {
+        taskDeleteModal.show();
       } else {
-        console.warn("Bootstrap Modal not available - cannot show alert resolve modal.");
+        console.warn("Bootstrap Modal not available - cannot show task delete modal.");
       }
     });
-  });
-
-  alertAckInitButton.addEventListener("click", () => {
-    // Implement alert acknowledge logic here, e.g. send an API request to update alert status
-    console.log("Alert acknowledged - implement API call to update alert status");
-  });
-
-  alertRslvInitButton.addEventListener("click", () => {
-    // Implement alert resolve logic here, e.g. send an API request to update alert status
-    console.log("Alert resolved - implement API call to update alert status");
-  });
+  }); 
 
 });
 </script>

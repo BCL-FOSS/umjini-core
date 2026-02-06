@@ -450,6 +450,7 @@
     const curUsrID = "{{ cur_usr }}"
     // let accessToken = getCookie("access_token");
     // Use JWT in Sec-WebSocket-Protocol
+    const prbExec = document.getElementById("prbExecSwitch");
     let ws = new WebSocket(wsURLMon);
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {});
     // close all modals but the one you want to open
@@ -730,7 +731,7 @@
       const traceOptions = document.getElementById("trcrt-options").value;
       const tracePacketLen = document.getElementById("trcrt-packetlen").value;
       const current_pid =  document.getElementById("probe-id-modal").dataset.pid;
-      const prbExec = document.getElementById("prbExecSwitch");
+      
 
       if (!traceType || !traceTarget) {
         spinner.classList.remove('d-inline-block');
@@ -862,24 +863,9 @@
         notificationModal.show();
       }
 
-      if (!taskDays.value && !taskMonths.value && !taskHours.value && !taskMinutes.value && !taskDom.value){
-        spinner.classList.remove('d-inline-block');
-        spinner.classList.add('d-none');
-        buttonText.textContent = "Test";
-        
-        // Enable the button
-        this.disabled = false;
-
-        document.getElementById('notificationModalLabel').textContent = 'Missing Parameters';
-        document.getElementById('notif-modal-text').innerText = 'Missing required task parameter(s). Please provide the necessary information and try again.';
-
-        notificationModal.show();
-      } 
-
       let taskData = {
         "act": "prb_task_init",
         "prb_id": current_pid,
-        "oper": "cmd",
         "task": spdtstType
       };
 
@@ -891,22 +877,52 @@
         taskData["prms"]["options"] = spdtstOptions;
       }
 
-      if (automationSwitch.checked){
-        taskData["automate"] = 'y';
+      if (prbExec.checked){
+        taskData["oper"] = "exec";
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Test";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
+        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
+
+        notificationModal.show();
+      } 
+
+      if (taskDays.value){
         taskData["days"] = taskDays.value;
-        taskData["months"] = taskMonths.value;
-        taskData["hours"] = taskHours.value;
-        taskData["minutes"] = taskMinutes.value;
-        taskData["dom"] = taskDom.value;
-      } else {
-        taskData["automate"] = 'n';
       }
 
-      if (llmAnalysisSwitch.checked){
-        taskData["llm_analysis"] = 'y';
-      } else {
-        taskData["llm_analysis"] = 'n';
+      if (taskMonths.value){
+        taskData["months"] = taskMonths.value;
       }
+
+      if (taskHours.value){
+        taskData["hours"] = taskHours.value;
+      }
+
+      if (taskMinutes.value){
+        taskData["minutes"] = taskMinutes.value;
+      }
+
+      if (taskDom.value){
+        taskData["dom"] = taskDom.value;
+      }
+
+      if (smartbotInitSwitch.checked){
+        taskData["smartbot"] = 'y';
+      } 
+
+      if (flowbotInitSwitch.checked){
+        taskData["flowbot"] = 'y';
+      }
+
+      taskData["oper"] = "init_task";
 
       ws.send(JSON.stringify(taskData));
 
@@ -961,7 +977,6 @@
       let taskData = {
         "act": "prb_task_init",
         "prb_id": current_pid,
-        "oper": "cmd",
         "task": scanType,
         "prms": {
           "subnet": scanTarget
@@ -976,22 +991,52 @@
         taskData["prms"]["options"] = scanOptions;
       }
 
-      if (automationSwitch.checked){
-        taskData["automate"] = 'y';
+      if (prbExec.checked){
+        taskData["oper"] = "exec";
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Test";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
+        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
+
+        notificationModal.show();
+      } 
+
+      if (taskDays.value){
         taskData["days"] = taskDays.value;
-        taskData["months"] = taskMonths.value;
-        taskData["hours"] = taskHours.value;
-        taskData["minutes"] = taskMinutes.value;
-        taskData["dom"] = taskDom.value;
-      } else {
-        taskData["automate"] = 'n';
       }
 
-      if (llmAnalysisSwitch.checked){
-        taskData["llm_analysis"] = 'y';
-      } else {
-        taskData["llm_analysis"] = 'n';
+      if (taskMonths.value){
+        taskData["months"] = taskMonths.value;
       }
+
+      if (taskHours.value){
+        taskData["hours"] = taskHours.value;
+      }
+
+      if (taskMinutes.value){
+        taskData["minutes"] = taskMinutes.value;
+      }
+
+      if (taskDom.value){
+        taskData["dom"] = taskDom.value;
+      }
+
+      if (smartbotInitSwitch.checked){
+        taskData["smartbot"] = 'y';
+      } 
+
+      if (flowbotInitSwitch.checked){
+        taskData["flowbot"] = 'y';
+      }
+
+      taskData["oper"] = "init_task";
 
       ws.send(JSON.stringify(taskData));
 
@@ -1046,7 +1091,6 @@
       let taskData = {
         "act": "prb_task_init",
         "prb_id": current_pid,
-        "oper": "cmd",
         "task": pcapType
       };
 
@@ -1065,22 +1109,52 @@
         taskData["prms"]["cap_count"] = pcapCount;
       }
 
-      if (automationSwitch.checked){
-        taskData["automate"] = 'y';
+      if (prbExec.checked){
+        taskData["oper"] = "exec";
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Test";
+        
+        // Enable the button
+        this.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
+        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
+
+        notificationModal.show();
+      } 
+
+      if (taskDays.value){
         taskData["days"] = taskDays.value;
-        taskData["months"] = taskMonths.value;
-        taskData["hours"] = taskHours.value;
-        taskData["minutes"] = taskMinutes.value;
-        taskData["dom"] = taskDom.value;
-      } else {
-        taskData["automate"] = 'n';
       }
 
-      if (llmAnalysisSwitch.checked){
-        taskData["llm_analysis"] = 'y';
-      } else {
-        taskData["llm_analysis"] = 'n';
+      if (taskMonths.value){
+        taskData["months"] = taskMonths.value;
       }
+
+      if (taskHours.value){
+        taskData["hours"] = taskHours.value;
+      }
+
+      if (taskMinutes.value){
+        taskData["minutes"] = taskMinutes.value;
+      }
+
+      if (taskDom.value){
+        taskData["dom"] = taskDom.value;
+      }
+
+      if (smartbotInitSwitch.checked){
+        taskData["smartbot"] = 'y';
+      } 
+
+      if (flowbotInitSwitch.checked){
+        taskData["flowbot"] = 'y';
+      }
+
+      taskData["oper"] = "init_task";
 
       ws.send(JSON.stringify(taskData));
 

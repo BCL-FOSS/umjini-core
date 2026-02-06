@@ -64,7 +64,8 @@
                           data-name="{{ probe.name|e }}"
                           data-url="{{ probe.url|e }}"
                           data-site="{{ probe.site|e }}"
-                          data-id="{{ probe.prb_id|e }}">
+                          data-id="{{ probe.prb_id|e }}"
+                          data-ifaces="{{ probe.iface_list|e }}">
                         Network Visualizer
                       </button>
                       <button class="btn btn-sm btn-outline-danger ms-2 probe-delete-btn"
@@ -100,7 +101,8 @@
             <div class="col-12 mt-4 mt-lg-0">
               <div class="card shadow h-100">
                 <div class="card-header pb-0 p-3">
-                  <h6 class="mb-0">Network Map</h6>
+                  <label class="mb-0 form-label">Select Interface</label>
+                  <select id="prb-netmap-ifaces-select" class="form-select"></select>
                 </div>
                 <div class="card-body pb-0 p-3">
                   <div id="controls">
@@ -131,8 +133,11 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" onclick="rescan()">🔄 Rescan Network</button>
+        <div class="input-group mb-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="prb-load-netscan">Load Current Map</button>
+          <button type="button" class="btn btn-primary" id="prb-run-netscan">Scan Network</button>
+        </div>
       </div>
     </div>
   </div>
@@ -579,6 +584,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const probeNetVisButtons = document.querySelectorAll(".probe-netvis-btn");
   const probeDeleteButtons = document.querySelectorAll(".probe-delete-btn");
   const deleteProbeButton = document.getElementById('delete-probe');
+  const probeLoadNetMapButton = document.getElementById('prb-load-netscan');
+  const probeRunNetScanButton = document.getElementById('prb-run-netscan');
 
   const netVisModalEl = document.getElementById('probeNetVisModal');
   let netVisBsModal = null;
@@ -636,12 +643,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = btn.dataset.url || '';
       const site = btn.dataset.site || '';
       const id = btn.dataset.id || '';
+      const ifaces = btn.dataset.ifaces;
+      const ifaces_list = JSON.parse(ifaces);
+      const select = document.getElementById('prb-netmap-ifaces-select');
 
       // Fill modal fields
       document.getElementById('probeNetVisModalLabel').textContent = `${name} Network Visualizer`;
+      document.getElementById
       // Additional setup can be done here
 
-      
+      ifaces_list.forEach(iface => {
+        const option = document.createElement('option');
+        option.value = iface;
+        option.textContent = iface;
+        select.appendChild(option);
+      });
+
       if (netVisBsModal) {
         netVisBsModal.show();
       } else {
@@ -733,6 +750,29 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error deleting probe:", err);
     }
   });
+
+  probeLoadNetMapButton.addEventListener("click", async function() {
+    const probeId = this.dataset.id;
+    
+
+    if (!probeId) {
+      alert("Probe ID not found!");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`https://${mntrURL}/netscan/load?usr={{ cur_usr }}&id=${probeId}`, {method: "GET", credentials:"same-origin"});
+      if (resp.ok) {
+        const data = await resp.json();
+        loadNetwork(data.discovery_results);
+      } else {
+        alert("Failed to load network map!");
+      }
+    } catch (err) {
+      console.error("Error loading network map:", err);
+    }
+  });
+
 });
 </script>
 

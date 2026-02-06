@@ -1,0 +1,14 @@
+quart==0.20.0
+quart-rate-limiter==0.12.0
+httpx==0.28.1
+uvicorn==0.35.0
+redis==6.0.0
+asyncio==4.0.0
+
+# RAG and ML libraries
+chromadb==0.5.23
+sentence-transformers==3.3.1
+ollama==0.6.0
+
+# Utilities
+python-dateutil==2.9.0

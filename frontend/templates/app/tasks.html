@@ -133,7 +133,10 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-toggle-init">Enable/Disable</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-toggle-init">
+          <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+          <span class="tsk-enable-button-text">Enable/Disable</span>
+        </button>
       </div>
     </div>
   </div>
@@ -162,14 +165,14 @@
             <div class="row mb-3">
               <div class="col-6">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" role="switch" id="llmAnalysisSwitch">
-                  <label class="form-check-label" for="llmAnalysisSwitch">Enable LLM Analysis</label>
+                  <input class="form-check-input" type="checkbox" role="switch" id="smartbotSwitch">
+                  <label class="form-check-label" for="smartbotSwitch">Send to SmartBot for analysis</label>
                 </div>
               </div>
               <div class="col-6">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" role="switch" id="automationSwitch">
-                  <label class="form-check-label" for="automationSwitch">Enable Agent Automation</label>
+                  <input class="form-check-input" type="checkbox" role="switch" id="flowbotSwitch">
+                  <label class="form-check-label" for="flowbotSwitch">Create FlowBot agentic workflow</label>
                 </div>
               </div>
             </div>
@@ -180,35 +183,35 @@
             <div class="row mb-3">
                 <div class="col-12">
                   <label class="form-label">Choose day(s) of week to run task. Available values: 0 (Sunday) to 6 (Saturday).</label>
-                  <input class="form-control" type="text" id="task-days">
+                  <input class="form-control" type="text" id="task-reschedule-days">
                   <div class="form-text">To run every Sunday, Wednesday and Saturday enter as such: 0,3,6.</div>
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
                   <label class="form-label">Choose minute(s) to run task. Available values: 0 to 59.</label>
-                  <input class="form-control" type="text" id="task-minutes">
+                  <input class="form-control" type="text" id="task-reschedule-minutes">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 5,50,5). The task would run every 5 minutes from 5 to 50. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
                   <label class="form-label">Choose day(s) of month to run task. Available values: 1 to 31.</label>
-                  <input class="form-control" type="text" id="task-dom">
+                  <input class="form-control" type="text" id="task-reschedule-dom">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,31,1). The task would run every day from 1 to 31. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
                   <label class="form-label">Choose month(s) to run task. Available values: 1 to 12.</label>
-                  <input class="form-control" type="text" id="task-months">
+                  <input class="form-control" type="text" id="task-reschedule-months">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,12,1). The task would run every month from January to December. </div> 
                 </div>
             </div>
             <div class="row mb-3">
               <div class="col-12">
                   <label class="form-label">Choose hour(s) to run task. Available values: 0 to 23.</label>
-                  <input class="form-control" type="text" id="task-hours">
+                  <input class="form-control" type="text" id="task-reschedule-hours">
                   <div class="form-text">For specific intervals, enter start,end,interval (e.g., 0,23,1). The task would run every hour from 0 to 23. </div> 
                 </div>  
             </div>
@@ -217,7 +220,10 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-reschedule-init">Reschedule</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="task-reschedule-init">
+          <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+          <span class="tsk-reschedule-button-text">Reschedule</span>
+        </button>
       </div>
     </div>
   </div>

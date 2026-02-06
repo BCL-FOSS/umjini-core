@@ -360,6 +360,8 @@ async def _receive() -> None:
                 case 'prb_task_init':
                     logger.info(f"Received probe action message: {message}.")
 
+                    message.pop('act')
+
                     if connected_probes.get(message["prb_id"]):
                         await connected_probes.get(message["prb_id"]).get("broker").publish(message=json.dumps(message))
                     else:
@@ -383,17 +385,30 @@ async def _receive() -> None:
 
                 case "prb_task_cnfrm":  
                     logger.info(f"Received probe task confirmation message: {message}.")
-                    
-                    message['timestamep'] = datetime.now(tz=timezone.utc).isoformat()
-                    message['alert_type'] = 'task_confirmation'
-                    
-                    task_id = f"task:{message['name']}:{message['prb_name']}:{message['timestamp']}"
 
-                    message['id'] = task_id
-                    
-                    if await cl_data_db.upload_db_data(id=task_id, data=message) > 0:
-                        logger.info(f"Task data uploaded successfully with id: {task_id}")
-                        await broker.publish(message=json.dumps(message))
+                    match message.get('storage_opt'):
+                        case 'new':
+
+                            message['timestamep'] = datetime.now(tz=timezone.utc).isoformat()
+                            
+                            task_id = f"task:{message['name']}:{message['prb_name']}:{message['timestamp']}"
+
+                            message['id'] = task_id
+                            
+                            if await cl_data_db.upload_db_data(id=task_id, data=message) > 0:
+                                logger.info(f"Task data uploaded successfully with id: {task_id}")
+                        case 'updt':
+                            if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
+                                logger.info(f"Task data updated successfully with id: {message['id']}")
+                        case _:
+                            continue
+
+                    message.pop('act')
+                    message.pop('storage_opt')
+                    message['alert_type'] = 'task_confirmation'
+                    message['msg'] = f"Task '{message['name']}' was configured at probe '{message['prb_name']}' with output: {message['task_output']}"
+
+                    await broker.publish(message=json.dumps(message))
 
                 case "prb_task_rslt":
                     final_output = ""
@@ -438,6 +453,7 @@ async def _receive() -> None:
                     if await cl_data_db.upload_db_data(id=alert_id, data=probe_task_result_data) > 0:
                         logger.info(f"Task result data uploaded successfully with id: {alert_id}")
                         await broker.publish(message=json.dumps(probe_task_result_data))
+
                 case _:
                     pass
         else:

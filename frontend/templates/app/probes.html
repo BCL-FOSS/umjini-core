@@ -324,22 +324,28 @@
             </div>
           </div>
         </div>
+        <div class="input-group mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="prbExecSwitch">
+            <label class="form-check-label" for="prbExecSwitch">Execute as one time task</label>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <form method="POST">
           <div class="form-floating mb-3">
-            <h6 class="form-label bold">Automation Settings</h6>
+            <h6 class="form-label bold">Task Schedule Settings</h6>
             <div class="row mb-3">
               <div class="col-6">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" role="switch" id="llmAnalysisSwitch">
-                  <label class="form-check-label" for="llmAnalysisSwitch">Enable LLM Analysis</label>
+                  <input class="form-check-input" type="checkbox" role="switch" id="smartbotInitSwitch">
+                  <label class="form-check-label" for="smartbotInitSwitch">Send to SmartBot for analysis</label>
                 </div>
               </div>
               <div class="col-6">
                 <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" role="switch" id="automationSwitch">
-                  <label class="form-check-label" for="automationSwitch">Schedule Task</label>
+                  <input class="form-check-input" type="checkbox" role="switch" id="flowbotInitSwitch">
+                  <label class="form-check-label" for="flowbotInitSwitch">Create FlowBot agentic workflow</label>
                 </div>
               </div>
             </div>

@@ -452,7 +452,7 @@
     // Use JWT in Sec-WebSocket-Protocol
     const prbExec = document.getElementById("prbExecSwitch");
     let ws = new WebSocket(wsURLMon);
-    const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {});
+    const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
     // close all modals but the one you want to open
     const $modals = document.querySelectorAll('.modal');
     $modals.forEach(modal => {

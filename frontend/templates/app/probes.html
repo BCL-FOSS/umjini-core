@@ -101,8 +101,49 @@
             <div class="col-12 mt-4 mt-lg-0">
               <div class="card shadow h-100">
                 <div class="card-header pb-0 p-3">
-                  <label class="mb-0 form-label">Select Interface</label>
-                  <select id="prb-netmap-ifaces-select" class="form-select"></select>
+                  <div class="row">
+                    <div class="col-6">
+                      <label class="mb-0 form-label">Select Interface</label>
+                      <select id="prb-netmap-ifaces-select" class="form-select"></select>
+                    </div>
+                    <div class="col-6">
+                      <select class="form-select" id="prb-netmap-scan-select">
+                        <option value="scan_arp">ARP Scan</option>
+                        <option value="scan_custom">Custom Scan</option>
+                        <option value="scan_dev_id">Device Identification Scan</option>
+                        <option value="scan_dev_fngr">Device Fingerprint Scan</option>
+                        <option value="scan_full">Full Network Scan</option>
+                        <option value="scan_snmp">SNMP Scan</option>
+                        <option value="scan_port">Port Scan</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="input-group mb-3">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-fplimit-switch">
+                          <label class="form-check-label" for="prb-netmap-scan-fplimit-switch">Limit Fingerprint Scan</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-fplimit-switch">
+                        <label class="form-check-label" for="prb-netmap-scan-fplimit-switch">Reduce Device Identification Scan Noise</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-6">
+                      <label class="form-label">SNMP scripts</label>
+                      <input type="text" class="form-control" placeholder="scripts" id="prb-netmap-snmp-scripts">
+                      <p class="form-text">For SNMP Scan only. Enter comma-separated nmap SNMP scripts to run (optional)</p>
+                    </div>
+                    <div class="col-6">
+
+                    </div>
+                  </div>
                 </div>
                 <div class="card-body pb-0 p-3">
                   <div id="controls">
@@ -329,12 +370,6 @@
             </div>
           </div>
         </div>
-        <div class="input-group mb-3">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="prbExecSwitch">
-            <label class="form-check-label" for="prbExecSwitch">Execute as one time task</label>
-          </div>
-        </div>
       </div>
       <div class="modal-footer">
         <form method="POST">
@@ -357,7 +392,7 @@
           </div>
           <div class="form-floating mb-3">
             <h6 class="form-label bold">Task Run Schedule</h6>
-            <p class="form-text">Use the fields below to set up a custom schedule for the selected task. Enter times ascomma-separated values or ranges.</p>
+            <p class="form-text">Use the fields below to set up a custom schedule for the selected task. Enter times as comma-separated values or ranges.</p>
             <div class="row mb-3">
                 <div class="col-12">
                   <label class="form-label">Choose day(s) of week to run task. Available values: 0 (Sunday) to 6 (Saturday).</label>
@@ -402,163 +437,6 @@
     </div>
   </div>
 </div>
-
-
-<script type="text/javascript">
-
-  const icons = {
-    firewall: "🛡️",
-    switch: "🔀",
-    server: "🖥️",
-    endpoint: "💻",
-    unknown: "❓"
-  };
-  
-  let nodes = new vis.DataSet([]);
-  let edges = [];
-  let network = null;
-  let existingNodes = new Set();
-  
-  async function loadNetwork(discovery_results) {
-    const devices = discovery_results;
-    const newNodes = [];
-
-    nodes.clear();
-    edges = [];
-
-    for (let key in devices) {
-        const dev = devices[key];
-        if (!existingNodes.has(dev.mac)) {
-            newNodes.push(dev.mac);
-        }
-        nodes.add({
-            id: dev.mac,
-            label: icons[dev.role] + " " + dev.vendor + "\n" + dev.ip,
-            title: "MAC: " + dev.mac + "\nPorts: " + dev.open_ports,
-            group: dev.role
-        });
-        existingNodes.add(dev.mac);
-    }
-
-    const macs = Object.values(devices).map(dev => dev.mac);
-    for (let i = 0; i < macs.length; i++) {
-        for (let j = 0; j < macs.length; j++) {
-            if (i != j) {
-                const dev1 = devices[Object.keys(devices)[i]];
-                const dev2 = devices[Object.keys(devices)[j]];
-
-                if (dev1.role == 'firewall' && dev2.role == 'switch') {
-                    edges.push({ from: dev1.mac, to: dev2.mac, width: 3 });
-                }
-                if (dev1.role == 'switch' && ['switch', 'server', 'endpoint'].includes(dev2.role)) {
-                    edges.push({ from: dev1.mac, to: dev2.mac, dashes: dev2.role != 'switch' });
-                }
-            }
-        }
-    }
-
-    const data = { nodes: nodes, edges: edges };
-    const options = {
-        groups: {
-            firewall: { color: { background: "#ff6961" }},
-            switch: { color: { background: "#77dd77" }},
-            server: { color: { background: "#779ecb" }},
-            endpoint: { color: { background: "#fdfd96" }},
-            unknown: { color: { background: "#d3d3d3" }}
-        },
-        edges: { arrows: { to: { enabled: true } } },
-        physics: { hierarchicalRepulsion: { nodeDistance: 150 }, solver: "hierarchicalRepulsion" },
-        layout: { hierarchical: { direction: "UD", sortMethod: "directed" } }
-    };
-
-    network = new vis.Network(document.getElementById('network'), data, options);
-
-    // Highlight new nodes
-    newNodes.forEach(mac => {
-        const nodeDom = network.body.nodes[mac]?.shapeNode;
-        if (nodeDom) {
-            nodeDom.style.animation = "glow 1s infinite";
-            setTimeout(() => {
-                nodeDom.style.animation = "";
-            }, 5000);
-        }
-    });
-
-    // Node click handler -> Modal
-    network.on("click", async function (params) {
-        if (params.nodes.length > 0) {
-            const nodeId = params.nodes[0];
-            const node = nodes.get(nodeId);
-            const ip = node.label.split('\n')[1];
-            const infoRes = await axios.get('/api/snmp/' + ip);
-            showModal(ip, infoRes.data);
-        }
-    });
-
-    detectAlerts();
-  }
-
-  function rescan() {
-    loadNetwork();
-  }
-  
-  function detectAlerts() {
-    const alertsDiv = document.getElementById('alerts');
-    let alertMsg = "";
-  
-    const uplinks = nodes.get().filter(n => n.group == 'switch' || n.group == 'firewall').length;
-    if (uplinks < 2) {
-      alertMsg += "⚠️ Possible missing uplinks detected!<br>";
-    }
-  
-    const orphans = nodes.get().filter(n => {
-      return edges.filter(e => e.from == n.id || e.to == n.id).length == 0;
-    });
-  
-    if (orphans.length > 0) {
-      alertMsg += "⚠️ Orphaned devices found:<br>";
-      orphans.forEach(o => {
-        alertMsg += "- " + o.label + "<br>";
-      });
-    }
-  
-    if (alertMsg) {
-      alertsDiv.innerHTML = `<div class="alert">${alertMsg}</div>`;
-    } else {
-      alertsDiv.innerHTML = "";
-    }
-  }
-  
-  // Modal logic
-  function showModal(ip, stats) {
-    const modal = document.getElementById('modal');
-    const modalBody = document.getElementById('modal-body');
-    modalBody.innerHTML = `<h2>SNMP Info for ${ip}</h2><ul>`;
-  
-    for (const [k, v] of Object.entries(stats)) {
-      modalBody.innerHTML += `<li><b>${k}</b>: ${v}</li>`;
-    }
-  
-    modalBody.innerHTML += `</ul>`;
-    modal.style.display = "block";
-  }
-  
-  document.getElementById('modal-close').onclick = function() {
-    document.getElementById('modal').style.display = "none";
-  };
-  
-  window.onclick = function(event) {
-    if (event.target == document.getElementById('modal')) {
-      document.getElementById('modal').style.display = "none";
-    }
-  };
-  
-  // Initial load
-  const discovery_results = "{{ discovery_results | tojson }}";
-  if (discovery_results) {
-    loadNetwork(discovery_results);
-  }
-</script>
 
 <script type="text/javascript">
 document.addEventListener("DOMContentLoaded", () => {
@@ -773,6 +651,431 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  probeRunNetScanButton.addEventListener("click", async function() {
+    const probeId = this.dataset.id;
+    const ifaceSelect = document.getElementById('prb-netmap-ifaces-select');
+    const scanTypeSelect = document.getElementById('prb-netmap-scan-select');
+    const selectedInterface = ifaceSelect.value;
+    const selectedScanType = scanTypeSelect.value;
+
+    if (!probeId) {
+      alert("Probe ID not found!");
+      return;
+    }
+
+    if (!selectedInterface) {
+      alert("Please select an interface to run the scan on.");
+      return;
+    }
+
+    const scanResults = await runNetworkScan(probeId, selectedInterface, selectedScanType);
+    if (scanResults) {
+      loadNetwork(scanResults.discovery_results);
+    }
+  });
+
+});
+
+</script>
+
+<script>
+  /**
+ * Network Visualization Functions for Nmap Scan Results
+ * Add this to the existing script section in probes.html
+ */
+
+// Function to call the nmap scan API and get results
+async function runNetworkScan(probeId, interface) {
+  const spinner = document.createElement('div');
+  spinner.className = 'spinner-border text-primary';
+  spinner.setAttribute('role', 'status');
+  
+  const networkDiv = document.getElementById('network');
+  networkDiv.innerHTML = '';
+  networkDiv.appendChild(spinner);
+  
+  try {
+    const response = await fetch(`/api/v1/probe/${probeId}/scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrf_token
+      },
+      body: JSON.stringify({
+        scan_type: 'full_scan',
+        interface: interface
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Scan failed: ${response.statusText}`);
+    }
+    
+    const scanResults = await response.json();
+    return scanResults;
+  } catch (error) {
+    console.error('Network scan error:', error);
+    document.getElementById('notificationModalLabel').textContent = 'Scan Error';
+    document.getElementById('notif-modal-text').textContent = `Failed to run network scan: ${error.message}`;
+    notificationModal.show();
+    return null;
+  } finally {
+    networkDiv.innerHTML = '';
+  }
+}
+
+// Function to parse nmap JSON output and transform to vis-network format
+function parseNmapJson(nmapData) {
+  const devices = {};
+  
+  // Handle different nmap JSON structures
+  const hosts = nmapData.nmaprun?.host || nmapData.host || [];
+  const hostArray = Array.isArray(hosts) ? hosts : [hosts];
+  
+  hostArray.forEach((host, index) => {
+    // Skip hosts that are down
+    if (host.status?.state !== 'up') return;
+    
+    // Extract IP address
+    const ipAddr = host.address?.find(addr => addr['@addrtype'] === 'ipv4');
+    const macAddr = host.address?.find(addr => addr['@addrtype'] === 'mac');
+    
+    const ip = ipAddr?.['@addr'] || `unknown-${index}`;
+    const mac = macAddr?.['@addr'] || `${ip}-mac`;
+    const vendor = macAddr?.['@vendor'] || 'Unknown';
+    
+    // Extract open ports
+    const ports = host.ports?.port || [];
+    const portArray = Array.isArray(ports) ? ports : [ports];
+    const openPorts = portArray
+      .filter(port => port.state?.['@state'] === 'open')
+      .map(port => port['@portid'])
+      .join(', ');
+    
+    // Determine device role based on ports and OS detection
+    const role = determineDeviceRole(portArray, host.os, openPorts);
+    
+    // Extract hostname
+    const hostname = host.hostnames?.hostname?.['@name'] || ip;
+    
+    // Extract OS information
+    const osMatch = host.os?.osmatch?.[0];
+    const osName = osMatch?.['@name'] || 'Unknown OS';
+    const osAccuracy = osMatch?.['@accuracy'] || 'N/A';
+    
+    devices[mac] = {
+      mac: mac,
+      ip: ip,
+      vendor: vendor,
+      role: role,
+      open_ports: openPorts || 'none',
+      hostname: hostname,
+      os: osName,
+      os_accuracy: osAccuracy,
+      services: extractServices(portArray)
+    };
+  });
+  
+  return devices;
+}
+
+// Determine device role based on open ports and characteristics
+function determineDeviceRole(ports, osInfo, openPortsStr) {
+  const portArray = Array.isArray(ports) ? ports : [ports];
+  const portNumbers = portArray
+    .filter(p => p.state?.['@state'] === 'open')
+    .map(p => parseInt(p['@portid']));
+  
+  // Firewall detection
+  if (portNumbers.includes(443) && portNumbers.includes(22) && portNumbers.length < 10) {
+    const services = portArray.map(p => p.service?.['@name']?.toLowerCase() || '');
+    if (services.some(s => s.includes('firewall') || s.includes('vpn'))) {
+      return 'firewall';
+    }
+  }
+  
+  // Switch detection
+  if (portNumbers.includes(161) || portNumbers.includes(23)) {
+    const osClass = osInfo?.osclass?.[0]?.['@type']?.toLowerCase() || '';
+    if (osClass.includes('switch') || osClass.includes('router')) {
+      return 'switch';
+    }
+  }
+  
+  // Server detection
+  const serverPorts = [80, 443, 22, 21, 3306, 5432, 1433, 3389, 8080, 8443];
+  const hasServerPorts = portNumbers.some(p => serverPorts.includes(p));
+  if (hasServerPorts && portNumbers.length >= 3) {
+    return 'server';
+  }
+  
+  // Endpoint detection
+  if (portNumbers.length <= 5) {
+    return 'endpoint';
+  }
+  
+  return 'unknown';
+}
+
+// Extract service information from ports
+function extractServices(ports) {
+  const portArray = Array.isArray(ports) ? ports : [ports];
+  return portArray
+    .filter(p => p.state?.['@state'] === 'open')
+    .map(p => {
+      const portId = p['@portid'];
+      const service = p.service?.['@name'] || 'unknown';
+      const product = p.service?.['@product'] || '';
+      const version = p.service?.['@version'] || '';
+      return `${portId}/${service} ${product} ${version}`.trim();
+    })
+    .join(', ');
+}
+
+// Enhanced loadNetwork function with animation and better visualization
+async function loadNetworkFromScan(scanResults) {
+  const devices = parseNmapJson(scanResults);
+  const newNodes = [];
+  
+  nodes.clear();
+  edges = [];
+  existingNodes.clear();
+  
+  // Create nodes
+  for (let key in devices) {
+    const dev = devices[key];
+    if (!existingNodes.has(dev.mac)) {
+      newNodes.push(dev.mac);
+    }
+    
+    const nodeLabel = `${icons[dev.role]} ${dev.vendor}\n${dev.ip}\n${dev.hostname}`;
+    const nodeTitle = `
+      <b>Device Information</b><br/>
+      MAC: ${dev.mac}<br/>
+      IP: ${dev.ip}<br/>
+      Hostname: ${dev.hostname}<br/>
+      Vendor: ${dev.vendor}<br/>
+      OS: ${dev.os} (${dev.os_accuracy}% confidence)<br/>
+      Role: ${dev.role}<br/>
+      Open Ports: ${dev.open_ports}<br/>
+      Services: ${dev.services || 'none'}
+    `;
+    
+    nodes.add({
+      id: dev.mac,
+      label: nodeLabel,
+      title: nodeTitle,
+      group: dev.role,
+      shape: 'box',
+      font: { size: 12, multi: 'html' }
+    });
+    existingNodes.add(dev.mac);
+  }
+  
+  // Create edges based on network topology
+  const deviceArray = Object.values(devices);
+  const firewalls = deviceArray.filter(d => d.role === 'firewall');
+  const switches = deviceArray.filter(d => d.role === 'switch');
+  const servers = deviceArray.filter(d => d.role === 'server');
+  const endpoints = deviceArray.filter(d => d.role === 'endpoint');
+  
+  // Connect firewalls to switches
+  firewalls.forEach(fw => {
+    switches.forEach(sw => {
+      edges.push({
+        from: fw.mac,
+        to: sw.mac,
+        width: 3,
+        color: { color: '#ff6961' },
+        arrows: { to: { enabled: true } }
+      });
+    });
+  });
+  
+  // Connect switches to servers and endpoints
+  switches.forEach(sw => {
+    [...servers, ...endpoints].forEach(device => {
+      edges.push({
+        from: sw.mac,
+        to: device.mac,
+        dashes: device.role === 'endpoint',
+        arrows: { to: { enabled: true } }
+      });
+    });
+  });
+  
+  // If no switches, connect firewall directly to devices
+  if (switches.length === 0 && firewalls.length > 0) {
+    firewalls.forEach(fw => {
+      [...servers, ...endpoints].forEach(device => {
+        edges.push({
+          from: fw.mac,
+          to: device.mac,
+          dashes: device.role === 'endpoint',
+          arrows: { to: { enabled: true } }
+        });
+      });
+    });
+  }
+  
+  const data = { nodes: nodes, edges: edges };
+  const options = {
+    groups: {
+      firewall: {
+        color: { background: "#ff6961", border: "#ff0000" },
+        shape: 'diamond'
+      },
+      switch: {
+        color: { background: "#77dd77", border: "#00aa00" },
+        shape: 'star'
+      },
+      server: {
+        color: { background: "#779ecb", border: "#0066cc" },
+        shape: 'box'
+      },
+      endpoint: {
+        color: { background: "#fdfd96", border: "#cccc00" },
+        shape: 'ellipse'
+      },
+      unknown: {
+        color: { background: "#d3d3d3", border: "#808080" },
+        shape: 'dot'
+      }
+    },
+    edges: {
+      arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+      smooth: { type: 'cubicBezier' }
+    },
+    physics: {
+      hierarchicalRepulsion: {
+        nodeDistance: 150,
+        centralGravity: 0.3
+      },
+      solver: "hierarchicalRepulsion",
+      stabilization: { iterations: 150 }
+    },
+    layout: {
+      hierarchical: {
+        direction: "UD",
+        sortMethod: "directed",
+        levelSeparation: 150,
+        nodeSpacing: 200
+      }
+    },
+    interaction: {
+      hover: true,
+      tooltipDelay: 100,
+      navigationButtons: true,
+      keyboard: true
+    }
+  };
+  
+  const networkContainer = document.getElementById('network');
+  network = new vis.Network(networkContainer, data, options);
+  
+  // Highlight new nodes with animation
+  newNodes.forEach(mac => {
+    const nodeElement = network.body.nodes[mac];
+    if (nodeElement) {
+      setTimeout(() => {
+        network.selectNodes([mac]);
+        setTimeout(() => network.unselectAll(), 2000);
+      }, 500);
+    }
+  });
+  
+  // Node click handler for detailed info
+  network.on("click", async function (params) {
+    if (params.nodes.length > 0) {
+      const nodeId = params.nodes[0];
+      const device = devices[nodeId];
+      if (device) {
+        showDeviceDetailsModal(device);
+      }
+    }
+  });
+  
+  // Detect and display network alerts
+  detectAlerts();
+  
+  return devices;
+}
+
+// Show device details in modal
+function showDeviceDetailsModal(device) {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  
+  modalBody.innerHTML = `
+    <h3>Device Details: ${device.hostname}</h3>
+    <table class="table table-sm">
+      <tr><th>MAC Address</th><td>${device.mac}</td></tr>
+      <tr><th>IP Address</th><td>${device.ip}</td></tr>
+      <tr><th>Hostname</th><td>${device.hostname}</td></tr>
+      <tr><th>Vendor</th><td>${device.vendor}</td></tr>
+      <tr><th>Operating System</th><td>${device.os} (${device.os_accuracy}% confidence)</td></tr>
+      <tr><th>Role</th><td><span class="badge bg-info">${device.role}</span></td></tr>
+      <tr><th>Open Ports</th><td>${device.open_ports || 'none'}</td></tr>
+      <tr><th>Services</th><td>${device.services || 'none'}</td></tr>
+    </table>
+  `;
+  
+  modal.style.display = "block";
+}
+
+// Update the event listener for the scan button
+document.addEventListener("DOMContentLoaded", () => {
+  // ... existing code ...
+  
+  probeRunNetScanButton.addEventListener("click", async function() {
+    const probeIdElement = document.getElementById('probe-id-modal');
+    const interfaceSelect = document.getElementById('prb-netmap-ifaces-select');
+    
+    const probeId = probeIdElement?.dataset.pid;
+    const selectedInterface = interfaceSelect?.value;
+    
+    if (!probeId || !selectedInterface) {
+      document.getElementById('notificationModalLabel').textContent = 'Missing Information';
+      document.getElementById('notif-modal-text').textContent = 'Please select a probe and interface before scanning.';
+      notificationModal.show();
+      return;
+    }
+    
+    // Disable button during scan
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+    
+    try {
+      const scanResults = await runNetworkScan(probeId, selectedInterface);
+      
+      if (scanResults) {
+        await loadNetworkFromScan(scanResults);
+        
+        document.getElementById('notificationModalLabel').textContent = 'Scan Complete';
+        document.getElementById('notif-modal-text').textContent = 'Network scan completed successfully. Visualizing results...';
+        notificationModal.show();
+      }
+    } catch (error) {
+      console.error('Scan error:', error);
+    } finally {
+      // Re-enable button
+      this.disabled = false;
+      this.textContent = 'Scan Network';
+    }
+  });
+  
+  // Store probe info when modal opens
+  probeNetVisButtons.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id || '';
+      
+      // Store probe ID for later use
+      document.getElementById('probe-id-modal').dataset.pid = id;
+      probeRunNetScanButton.dataset.id = id;
+      probeLoadNetMapButton.dataset.id = id;
+    });
+  });
 });
 </script>
 

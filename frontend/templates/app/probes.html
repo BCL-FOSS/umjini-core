@@ -120,17 +120,15 @@
                   </div>
                   <div class="row">
                     <div class="col-6">
-                      <div class="input-group mb-3">
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-fplimit-switch">
-                          <label class="form-check-label" for="prb-netmap-scan-fplimit-switch">Limit Fingerprint Scan</label>
-                        </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-fplimit-switch">
+                        <label class="form-check-label" for="prb-netmap-scan-fplimit-switch">Limit Fingerprint Scan</label>
                       </div>
                     </div>
                     <div class="col-6">
                       <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-fplimit-switch">
-                        <label class="form-check-label" for="prb-netmap-scan-fplimit-switch">Reduce Device Identification Scan Noise</label>
+                        <input class="form-check-input" type="checkbox" role="switch" id="prb-netmap-scan-devid-noise-switch">
+                        <label class="form-check-label" for="prb-netmap-scan-devid-noise-switch">Reduce Device Identification Scan Noise</label>
                       </div>
                     </div>
                   </div>
@@ -141,7 +139,9 @@
                       <p class="form-text">For SNMP Scan only. Enter comma-separated nmap SNMP scripts to run (optional)</p>
                     </div>
                     <div class="col-6">
-
+                      <label class="form-label">Ports to scan</label>
+                      <input type="text" class="form-control" placeholder="ports" id="prb-netmap-ports">
+                      <p class="form-text">For Port Scan only. Enter comma-separated ports to scan (optional)</p>
                     </div>
                   </div>
                 </div>

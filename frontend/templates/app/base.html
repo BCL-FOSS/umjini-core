@@ -467,7 +467,7 @@
       });
     });
 
-    function connectWebSocket() {
+    async function connectWebSocket() {
 
       ws.onopen = () => {
         console.log("WebSocket connected");
@@ -504,13 +504,13 @@
 
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.info(data);
 
-          if (data.msg && data.from) {
-            if (data.usr_id === curUsrID){
-              console.info(data);
+          if (data.usr_id === curUsrID){
+            if (data.msg && data.from) {
               const chatWin = document.getElementById(`chat-${data.url}`);
               if(data.final_output){
                 if (chatWin) appendMessage(chatWin, data.from, data.msg);
@@ -525,18 +525,82 @@
                 if (chatWin) appendMessage(chatWin, data.from, data.msg);
               } 
             } 
+
+            if (data.alert_type){
+              switch (data.alert_type){
+                case "exec_result":
+                  if (data.task_type === "trcrt_dns" || data.task_type === "trcrt"){
+                    const spinner = document.getElementById('netvis-trace-run-spinner');
+                    const buttonText = document.getElementById('netvis-trace-run-txt');
+                    const netvisTraceButton = document.getElementById('netvis-trace-run-btn');
+
+                    await visualizeTraceroute(data.task_output);
+
+                    spinner.classList.remove('d-inline-block');
+                    spinner.classList.add('d-none');
+                    buttonText.textContent = "Run Trace";
+
+                    netvisTraceButton.disabled = false;
+
+                    addNotification(data);
+                  }
+
+                  if (typeof action === "string" && action.startsWith("test_")){
+                    const spinner = document.getElementById('netvis-perf-run-spinner');
+                    const buttonText = document.getElementById('netvis-perf-run-txt');
+                    const netvisPerfButton = document.getElementById('netvis-perf-run-btn');
+
+                    await visualizePerformanceTest(data.task_output);
+
+                    spinner.classList.remove('d-inline-block');
+                    spinner.classList.add('d-none');
+                    buttonText.textContent = "Run Performance Test";
+
+                    netvisPerfButton.disabled = false;
+
+                    addNotification(data);
+
+                  }
+
+                  if (typeof action === "string" && action.startsWith("pcap_")){
+                    const spinner = document.getElementById('netvis-pcap-run-spinner');
+                    const buttonText = document.getElementById('netvis-pcap-run-txt');
+                    const netvisPcapButton = document.getElementById('netvis-pcap-run-btn');
+
+                    await visualizePacketCapture(data.task_output);
+
+                    spinner.classList.remove('d-inline-block');
+                    spinner.classList.add('d-none');
+                    buttonText.textContent = "Run Packet Capture";
+
+                    netvisPcapButton.disabled = false;
+
+                    addNotification(data);
+                  }
+
+                  if (typeof action === "string" && action.startsWith("scan_")) {
+                    const spinner = document.getElementById('netvis-scan-run-spinner');
+                    const buttonText = document.getElementById('netvis-scan-run-txt');
+                    const netvisScanButton = document.getElementById('netvis-scan-run-btn');
+
+                    await visualizeNetworkScan(data.task_output);
+
+                    spinner.classList.remove('d-inline-block');
+                    spinner.classList.add('d-none');
+                    buttonText.textContent = "Run Scan";
+
+                    netvisScanButton.disabled = false;
+
+                    addNotification(data);
+                  }
+                  break;
+              }
+            }
           }
 
           if (data.alert_type){
             addNotification(data);
-
-            switch (data.alert_type){
-              case "outage":
-                console.info(data);
-                break;
             }
-          }
-
 
         } catch (err) {
           console.error("Invalid WS data:", err, event.data);
@@ -1313,7 +1377,7 @@
       this.disabled = false;
 
       document.getElementById('notificationModalLabel').textContent = `Task ${name.dataset.name} Rescheduled`;
-      document.getElementById('notif-modal-text').innerText = `task ${name.dataset.name} has been successfully rescheduled.`;
+      document.getElementById('notif-modal-text').innerText = `task ${name.dataset.name} reschedule has been successfully initiated.`;
 
       notificationModal.show();
     });
@@ -1402,17 +1466,16 @@
         options: options  
       };
 
-      new_scan_data = await runNetworkScan(probe_id.dataset.pid, probe_url.dataset.url, scanType, param_data, probe_api_key.dataset.api_key);
+      let scan_data = JSON.stringify({
+        act: "prb_task_init",
+        prb_id: probe_id.dataset.pid,
+        oper: "exec",
+        task: scanType,
+        prms: param_data,
+        usr_id: curUsrID
+      });
 
-      ws.send(JSON.stringify(new_scan_data));
-
-      // Hide the spinner and show the text
-      spinner.classList.remove('d-inline-block');
-      spinner.classList.add('d-none');
-      buttonText.textContent = "Run Scan";
-
-      // Enable the button
-      this.disabled = false;
+      ws.send(scan_data);
     });
 
     netvisRunPcapButton.addEventListener("click", async function() {
@@ -1454,15 +1517,16 @@
         remote_pass: remotePass
       };
 
-      new_pcap_data = await runPacketCapture(probe_id.dataset.pid, probe_url.dataset.url, captureMode, param_data, probe_api_key.dataset.api_key);
+      let pcap_data = JSON.stringify({
+        act: "prb_task_init",
+        prb_id: probe_id.dataset.pid,
+        oper: "exec",
+        task: captureMode,
+        prms: param_data,
+        usr_id: curUsrID
+      });
 
-      ws.send(JSON.stringify(new_pcap_data));
-
-      spinner.classList.remove('d-inline-block');
-      spinner.classList.add('d-none');
-      buttonText.textContent = "Run Capture";
-
-      this.disabled = false;
+      ws.send(pcap_data);
     });
 
     netvisRunTraceButton.addEventListener("click", async function() {
@@ -1497,15 +1561,16 @@
         packet_len: packetLen
       };
 
-      new_trace_data = await runTraceroute(probe_id.dataset.pid, probe_url.dataset.url, traceType, param_data, probe_id.dataset.api_key);
+      let trace_data = JSON.stringify({
+        act: "prb_task_init",
+        prb_id: probe_id.dataset.pid,
+        oper: "exec",
+        task: traceType,
+        prms: param_data,
+        usr_id: curUsrID
+      });
 
-      ws.send(JSON.stringify(new_trace_data));
-
-      spinner.classList.remove('d-inline-block');
-      spinner.classList.add('d-none');
-      buttonText.textContent = "Run Trace";
-
-      this.disabled = false;
+      ws.send(trace_data);
 
     });
 
@@ -1535,17 +1600,17 @@
         options: options
       };
 
-      new_perf_data = await runPerformanceTest(probe_id.dataset.pid, probe_url.dataset.url, testType, param_data, probe_id.dataset.api_key);
+      let perf_data = JSON.stringify({
+        act: "prb_task_init",
+        prb_id: probe_id.dataset.pid,
+        oper: "exec",
+        task: testType,
+        prms: param_data,
+        usr_id: curUsrID
+      })
       
-      ws.send(JSON.stringify(new_perf_data));
-
-      spinner.classList.remove('d-inline-block');
-      spinner.classList.add('d-none');
-      buttonText.textContent = "Run Performance Test";
-      this.disabled = false;
+      ws.send(perf_data);
     });
-
-    
 
     chatInput.addEventListener("keypress", e => {
       if (e.key === "Enter") sendMessage();

@@ -1484,34 +1484,11 @@ async def notifications():
             data['id'] = f"alrt:{data['type']}:{data['email']}:{count_id}"
 
         if data['type'] == 'email':
-            email_count = await cl_data_db.get_all_data(match=f"alrt:{data['type']}:count*")
+            data['id'] = f"alrt:{data['type']}:{data['email']}:{count_id}"
 
-            if email_count is not None:
-                email_count_dict = next(iter(email_count.values()))
-                if email_count_dict.get('count') <= int(os.environ.get('MAX_CONTACTS_PER_TYPE')):
-                    count_id = email_count_dict.get('count') + 1
-                    if await cl_data_db.upload_db_data(id=f"alrt:{data['type']}:count", data={'count': count_id}) > 0:
-                        logger.info(f"Updated email alert count to {count_id}")
-
-                        data['id'] = f"alrt:{data['type']}:{data['email']}:{count_id}"
-
-                        new_contact_result = await run_sync(lambda: email_sender_handler.add_contact(email=data['email'],
+            new_contact_result = await run_sync(lambda: email_sender_handler.add_contact(email=data['email'],
                                                                 ext_id=data['id']))()
-                        logger.info(f"New contact creation result for email alert config: {new_contact_result}")
-                else:
-                    return jsonify(error=f"Maximum number of {data['type']} alert configs reached"), 400
-            else:
-                count_id = 1
-                if await cl_data_db.upload_db_data(id=f"alrt:{data['type']}:count", data={'count': count_id}) > 0:
-                    logger.info(f"Initialized email alert count to {count_id}")
-
-                    data['id'] = f"alrt:{data['type']}:{data['eml']}:{count_id}"
-
-                    new_contact_result = await run_sync(lambda: email_sender_handler.add_contact(email=data['email'],
-                                                                ext_id=data['id']))()
-                    logger.info(f"New contact creation result for email alert config: {new_contact_result}")
-
-        data['count'] = count_id
+            logger.info(f"New contact creation result for email alert config: {new_contact_result}")
 
         if await cl_data_db.upload_db_data(id=data['id'], data=data) > 0:
             return jsonify({'status':' alert config received'}), 200

@@ -264,7 +264,6 @@
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
     const mntrURL = "{{ mntr_url }}";
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {});
     const addSlkBtn = document.getElementById('add-slack');
@@ -290,7 +289,7 @@
 
       const email = document.getElementById('email-id').value;
 
-      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/v1/api/core/user/notifications?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {
@@ -318,7 +317,7 @@
       const email = document.getElementById('jira-id').value;
       const authToken = document.getElementById('jira-token').value;
 
-      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/v1/api/core/user/notifications?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {
@@ -346,7 +345,7 @@
       const slackToken = document.getElementById('slack-token').value;
       const slackChannelID =  document.getElementById('slack-channel-id').value;
 
-      resp = await fetch(`https://${mntrURL}/notificationscfg?sess_id={{ auth_id }}`, {
+      resp = await fetch(`https://${mntrURL}/v1/api/core/user/notifications?sess_id={{ auth_id }}`, {
         method: 'POST',
         credentials:"same-origin",
         headers: {
@@ -370,7 +369,7 @@
     createAPIBtn.addEventListener('click', async function() {
       apiGenModal.hide();
 
-        resp = await fetch(`https://${mntrURL}/createapi?sess_id={{ auth_id }}`, {
+        resp = await fetch(`https://${mntrURL}//v1/api/core/user/createapi?sess_id={{ auth_id }}`, {
           method: 'POST',
           credentials:"same-origin"
         });
@@ -386,7 +385,7 @@
     refreshAPIBtn.addEventListener('click', async function() {
       apiRefreshModal.hide();
 
-        resp = await fetch(`https://${mntrURL}/resetapi?sess_id={{ auth_id }}`, {
+        resp = await fetch(`https://${mntrURL}/v1/api/core/user/resetapi?sess_id={{ auth_id }}`, {
           method: 'POST',
           credentials:"same-origin"
         });
@@ -419,6 +418,6 @@
       apiRefreshModal.show();
     });
 
-  });
+
 </script>
 {% endblock %}

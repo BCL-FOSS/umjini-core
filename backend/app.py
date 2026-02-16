@@ -283,7 +283,7 @@ async def _receive() -> None:
                                     
                                 time_stamp = datetime.now(timezone.utc).isoformat()
 
-                                chat_data_id = f"chat:{tool_msg['id']}{time_stamp}"
+                                chat_data_id = f"chat:{message['usr']}:{tool_msg['id']}{time_stamp}"
 
                                 chat_data = {'id': chat_data_id,
                                             'usr_msg': message["msg"],
@@ -371,12 +371,12 @@ async def _receive() -> None:
                             'timestamp': datetime.now(tz=timezone.utc)
                         }
 
-                        alert_id = f"alert:{message['alert_type']}:{message['prb_id']}:{message['timestamp']}"
+                        alert_id = f"alert:{probe_conn_error['prb_id']}:{probe_conn_error['alert_type']}:{probe_conn_error['timestamp']}"
 
                         probe_conn_error['id'] = alert_id
 
                         if await cl_data_db.upload_db_data(id=alert_id, data=probe_conn_error) > 0:
-                            logger.info(f"Task result data uploaded successfully with id: alert:{message['alert_type']}:{message['prb_id']}:{message['timestamp']}")
+                            logger.info(f"Task result data uploaded successfully with id: {alert_id}")
 
                         await broker.publish(message=json.dumps(probe_conn_error))
 
@@ -388,7 +388,7 @@ async def _receive() -> None:
 
                             message['timestamp'] = datetime.now(tz=timezone.utc).isoformat()
                             
-                            task_id = f"task:{message['name']}:{message['prb_name']}:{message['timestamp']}"
+                            task_id = f"task:obj:{message['task_type']}:{message['prb_id']}:{message['timestamp']}"
 
                             message['id'] = task_id
                             
@@ -401,7 +401,7 @@ async def _receive() -> None:
                     message.pop('act')
                     message.pop('storage_opt')
                     message['alert_type'] = 'task_confirmation'
-                    message['msg'] = f"Task '{message['name']}' was configured at probe '{message['prb_name']}' with output: {message['task_output']}"
+                    message['msg'] = f"Task '{message['task_type']}' was configured at probe '{message['prb_id']}' with output: {message['task_output']}"
 
                     await broker.publish(message=json.dumps(message))
 
@@ -421,7 +421,7 @@ async def _receive() -> None:
                                         'instructions': SUMMARY_INSTRUCTIONS,
                                         'url': message['url'],
                                         'api_key': api,
-                                        'user': message['usr'],
+                                        'user': message['assigned_user'],
                                     }
 
                         smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/analysis", json=smmry_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
@@ -440,11 +440,11 @@ async def _receive() -> None:
 
                     message.pop('act')
          
-                    alert_id = f"task:{message['name']}:result:{message['prb_name']}:{message['timestamp']}"
-                    message['id'] = alert_id
+                    task_result_id = f"task:result:{message['prb_id']}:{message['task_type']}:{message['timestamp']}"
+                    message['id'] = task_result_id
 
-                    if await cl_data_db.upload_db_data(id=alert_id, data=message) > 0:
-                        logger.info(f"Task result data uploaded successfully with id: {alert_id}")
+                    if await cl_data_db.upload_db_data(id=task_result_id, data=message) > 0:
+                        logger.info(f"Task result data uploaded successfully with id: {task_result_id}")
                         await broker.publish(message=json.dumps(message))
 
                 case _:
@@ -533,12 +533,12 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                             'msg': f'Probe {probe_data_dict.get("name")} (ID: {sess_id}) is offline or a network outage has occurred at the site or resource the probe is located at.',
                                             'timestamp': now.isoformat()}
                     
-                    alert_id = f"alert:{probe_outage_data['alert_type']}:{sess_id}:{now.isoformat()}"
+                    alert_id = f"alert:{sess_id}:{probe_outage_data['alert_type']}:{now.isoformat()}"
 
                     probe_outage_data['id'] = alert_id
                     
                     if await cl_data_db.upload_db_data(id=alert_id, data=probe_outage_data) > 0:
-                        logger.info(f"Probe outage alert data uploaded successfully with id: alert:{probe_outage_data['alert_type']}:{sess_id}:{now.isoformat()}")
+                        logger.info(f"Probe outage alert data uploaded successfully with id: {alert_id}")
 
                     await broker.publish(message=json.dumps(probe_outage_data))
                     return None

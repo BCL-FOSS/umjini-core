@@ -38,6 +38,26 @@ max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
 auth_attempts={}
 reg_attempts={}
 
+async def retrieve_user_sess_data(sess_id):
+    await cl_sess_db.connect_db()
+
+    # Retrieve user session data
+    cl_sess_data = await cl_sess_db.get_all_data(match=f"{sess_id}")
+    cl_sess_data_dict = next(iter(cl_sess_data.values()))
+    logger.info(cl_sess_data_dict)
+
+    data = {'unm': cl_sess_data_dict.get('unm'),
+            'id': cl_sess_data_dict.get('db_id'),
+            'fnm': cl_sess_data_dict.get('fname'),
+            'lnm': cl_sess_data_dict.get('lname'),
+            'eml': cl_sess_data_dict.get('eml'),
+            'sess_id': sess_id}
+
+    # URL for agent websocket connection initialization
+    ws_url = f"wss://{mntr_url}/v1/api/core/channels/users/ws?id={sess_id}&unm={cl_sess_data_dict.get('unm')}"
+
+    return data, ws_url
+
 async def ip_blocker(auto_ban: bool = False):
     if auto_ban is True:
         await ip_ban_db.connect_db()
@@ -361,30 +381,9 @@ async def logout(auth_id):
 async def dashboard(cmp_id, obsc):
     cur_usr_id = current_client.auth_id
 
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # Retrieve user data from auth db
-    main_user_data = await cl_auth_db.get_all_data(match=f'*{cl_sess_data_dict.get('unm')}*')
-    logger.info(main_user_data)
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-
-    return await render_template("app/dashboard.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
+    return await render_template("app/dashboard.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data)
 
 @app.route('/smartbot', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/smartbot/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
@@ -396,133 +395,48 @@ async def smartbot(cmp_id, obsc):
     await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
 
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
     probe_data = await cl_data_db.get_all_data(match=f"prb:*")
 
     if probe_data is None:
         probe_data = {"":""}
 
-    return await render_template("app/smartbot.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=cl_sess_data_dict.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, data=data)
+    return await render_template("app/smartbot.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=user_data.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, data=user_data)
 
 @app.route('/settings', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/settings/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
 async def settings(cmp_id, obsc):
     cur_usr_id = current_client.auth_id
-
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
-    await cl_data_db.connect_db()
-
     session["csrf_ready"] = True
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-    
-    all_alert_types = await cl_data_db.get_all_data(match="alrt:*")
-
-    if all_alert_types is None:
-        all_alert_types = {'':''}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
   
-    return await render_template("app/settings.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, data=data, cur_usr=cl_sess_data_dict.get('unm'), mntr_url=mntr_url, all_alert_types=all_alert_types, ws_url=ws_url, auth_id=cur_usr_id)
+    return await render_template("app/settings.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, data=user_data, cur_usr=user_data.get('unm'), mntr_url=mntr_url, ws_url=ws_url, cur_usr_id=cur_usr_id)
 
 @app.route('/floweditor', defaults={'cmp_id': 'bcl','obsc': url_key, 'flow_id': 'default'}, methods=['GET', 'POST'])
 @app.route("/floweditor/<string:cmp_id>/<string:obsc>/<string:flow_id>", methods=['GET', 'POST'])
 @user_login_required
 async def floweditor(cmp_id, obsc, flow_id):
-    util_obj = Util()
-
     cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
     probe_data = await cl_data_db.get_all_data(match=f"prb:*")
     if probe_data is None:
         probe_data = {'':''}
-        
-    all_flows = await cl_data_db.get_all_data(match=f"flow:*")
-    if all_flows is None:
-        all_flows = {'':''}
-    
-    logger.info(probe_data)
-    logger.info(all_flows)
 
     return await render_template("app/floweditor.html", obsc_key=session.get('url_key') ,
                                 cmp_id=cmp_id, all_probes=probe_data, mntr_url=mntr_url, 
-                                user=cl_sess_data_dict.get('unm'), flows=all_flows, cur_usr=cur_usr, ws_url=ws_url, auth_id=cur_usr_id, data=data, flow_id=flow_id)
+                                user=user_data.get('unm'), cur_usr=user_data.get('unm'), ws_url=ws_url, cur_usr_id_id=cur_usr_id, data=user_data, flow_id=flow_id, cur_usr_id=cur_usr_id)
 
 @app.route('/probes', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/probes/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
 async def probes(cmp_id, obsc):
-    util_obj = Util()
-
     cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
     all_probes = await cl_data_db.get_all_data(match=f"prb:*")
     logger.info(all_probes)
@@ -531,171 +445,64 @@ async def probes(cmp_id, obsc):
         all_probes = {'':''}
 
     return await render_template("app/probes.html", obsc_key=session.get('url_key'),
-                                all_probes=all_probes, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, ws_url=ws_url, data=data)
+                                all_probes=all_probes, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id_id=cur_usr_id, ws_url=ws_url, data=user_data)
 
-@app.route('/flowmgr', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/flowmgr/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@app.route('/probe', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default'}, methods=['GET', 'POST'])
+@app.route("/probe/<string:cmp_id>/<string:obsc>/<string:prb_id>", methods=['GET', 'POST'])
 @user_login_required
-async def flowmgr(cmp_id, obsc):
-    util_obj = Util()
-
+async def probe(cmp_id, obsc, prb_id):
     cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
     await cl_data_db.connect_db()
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
+    if prb_id != "default":
+        probe_data = await cl_data_db.get_all_data(match=f"*{prb_id}*")
+        probe_data_dict = next(iter(probe_data.values()))
 
-    cur_usr = cl_sess_data_dict.get('unm')
+        flows = await cl_data_db.get_all_data(match=f"flow:{prb_id}:*")
+        trace_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:trcrt*")
+        perf_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:test_clnt*")
+        scan_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:scan_*")
+        pcap_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:pcap_*")
+        all_tasks = await cl_data_db.get_all_data(match=f"task:obj:{prb_id}:*")
+    else:
+        probe_data_dict = {'':''}
+        flows = {'':''}
+        trace_results = {'':''}
+        perf_results = {'':''}
+        scan_results = {'':''}
+        pcap_results = {'':''}
+        all_tasks = {'':''}
 
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-
-    all_flows = await cl_data_db.get_all_data(match=f"flow:*")
-    logger.info(all_flows)
-
-    if all_flows is None:
-        all_flows = {'':''}
-
-    return await render_template("app/flowmgr.html", obsc_key=session.get('url_key') ,
-                                flows=all_flows, cmp_id=cmp_id, ollama_proxy =os.environ.get('OLLAMA_PROXY_URL'), user=cl_sess_data_dict.get('unm'), mntr_url=mntr_url, cur_usr=cur_usr, auth_id=cur_usr_id, ws_url=ws_url, data=data)
+    return await render_template("app/probe.html", obsc_key=session.get('url_key') ,
+                                flows=flows, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, ws_url=ws_url, data=user_data, probe_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, all_tasks=all_tasks, probe_data=probe_data_dict)
 
 @app.route('/alerts', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/alerts/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
 async def alerts(cmp_id, obsc):
-    util_obj = Util()
-
     cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-    
-    discovery_results = None
+    await cl_data_db.connect_db()
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
     return await render_template("app/alerts.html", obsc_key=session.get('url_key') ,
-                                  cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
+                                  cmp_id=cmp_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, cur_usr_id=cur_usr_id)
 
-@app.route('/chats', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/chats/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
+@app.route('/chats', defaults={'cmp_id': 'bcl','obsc': url_key, 'usr': 'default'}, methods=['GET', 'POST'])
+@app.route("/chats/<string:cmp_id>/<string:obsc>/<string:usr>", methods=['GET', 'POST'])
 @user_login_required
-async def chats(cmp_id, obsc):
-    util_obj = Util()
-
+async def chats(cmp_id, obsc, usr):
     cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
+    await cl_data_db.connect_db()
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-    
-    discovery_results = None
+    if usr != "default":
+        chats = await cl_data_db.get_all_data(match=f"chat:{usr}:*")
+    else:
+        chats = {'':''}
 
     return await render_template("app/chats.html", obsc_key=session.get('url_key') ,
-                                  cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
-
-@app.route('/tasks', defaults={'cmp_id': 'bcl','obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/tasks/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
-@user_login_required
-async def tasks(cmp_id, obsc):
-    util_obj = Util()
-
-    cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-    
-    discovery_results = None
-
-    return await render_template("app/tasks.html", obsc_key=session.get('url_key') ,
-                                  cmp_id=cmp_id, discovery_results = discovery_results, auth_id=cur_usr_id, ws_url=ws_url, cur_usr=cur_usr, data=data)
-
-@app.route('/netvis', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default', 'task_type': 'default', 'netvis_output_id': 'default'}, methods=['GET', 'POST'])
-@app.route("/netvis/<string:cmp_id>/<string:obsc>/<string:prb_id>/<string:task_type>/<string:netvis_output_id>", methods=['GET', 'POST'])
-@user_login_required
-async def netvis(cmp_id, obsc, prb_id, task_type, netvis_output_id):
-    util_obj = Util()
-
-    cur_usr_id = current_client.auth_id
-    
-    await cl_auth_db.connect_db()
-    await cl_sess_db.connect_db()
-
-    # Retrieve user session data
-    cl_sess_data = await cl_sess_db.get_all_data(match=f"{cur_usr_id}")
-    cl_sess_data_dict = next(iter(cl_sess_data.values()))
-    logger.info(cl_sess_data_dict)
-
-    cur_usr = cl_sess_data_dict.get('unm')
-
-    data = {'unm': cl_sess_data_dict.get('unm'),
-            'id': cl_sess_data_dict.get('db_id'),
-            'fnm': cl_sess_data_dict.get('fname'),
-            'lnm': cl_sess_data_dict.get('lname'),
-            'eml': cl_sess_data_dict.get('eml')}
-
-    # URL for agent websocket connection initialization
-    ws_url = f"wss://{mntr_url}/ws?id={cur_usr_id}&unm={cl_sess_data_dict.get('unm')}"
-
-    return await render_template("app/netvis.html", obsc_key=session.get('url_key') ,
-                                cmp_id=cmp_id, prb_id=prb_id, mntr_url=mntr_url, user=cl_sess_data_dict.get('unm'), cur_usr=cur_usr, auth_id=cur_usr_id, ws_url=ws_url, data=data, task_type=task_type, netvis_output_id=netvis_output_id)
-
+                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, usr=usr, chats=chats)
 
 @app.errorhandler(Unauthorized)
 async def redirect_to_login(*_):

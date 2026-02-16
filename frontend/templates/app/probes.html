@@ -52,14 +52,12 @@
                   </td>
                   <td>
                     <div class="input-group mb-3">
-                      <button type="button" class="btn btn-sm btn-info ms-2 probe-dashboard-btn"
-                          data-name="{{ probe.name|e }}"
-                          data-url="{{ probe.url|e }}"
-                          data-site="{{ probe.site|e }}"
-                          data-id="{{ probe.prb_id|e }}"
-                          data-ifaces="{{ probe.iface_list|e }}">
+                      <a href="{{ url_for('probe', cmp_id=cmp_id, obsc=obsc_key, prb_id=probe.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
                         View {{ probe.name }} Dashboard
-                      </button>
+                      </a>
+                      <a href="{{ url_for('floweditor', cmp_id=cmp_id, obsc=obsc_key) }}" target="_blank" class="btn btn-sm btn-outline-info ms-2">
+                        Create {{ probe.name }} WorkFlow
+                      </a>
                       <button class="btn btn-sm btn-outline-danger ms-2 probe-delete-btn"
                           data-name="{{ probe.name|e }}"
                           data-url="{{ probe.url|e }}"
@@ -121,56 +119,11 @@
   });
 
   // Details button handler: open modal and populate tabs
-  const probeDashboardButtons = document.querySelectorAll(".probe-dashboard-btn");
+
   const probeDeleteButtons = document.querySelectorAll(".probe-delete-btn");
   const deleteProbeButton = document.getElementById('delete-probe');
 
-  const deleteModalEl = document.getElementById('probeDeleteModal');
-  let deleteBsModal = null;
-  if (deleteModalEl) {
-    deleteBsModal = new bootstrap.Modal(deleteModalEl, {});
-  }
-
-  probeDashboardButtons.forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // prevent row click selection (if undesired)
-      const name = btn.dataset.name || '';
-      const url = btn.dataset.url || '';
-      const site = btn.dataset.site || '';
-      const id = btn.dataset.id || '';
-      const ifaces = btn.dataset.ifaces || '';
-      const ifaces_list = JSON.parse(ifaces);
-      const scan_select = document.getElementById('scan-ifaces-select');
-      const pcap_select = document.getElementById('pcap-ifaces-select');
-
-      // Fill modal fields
-      document.getElementById('probeTaskConfigModalLabel').textContent = `${name} Task Automation Settings`;
-      document.getElementById('probe-id-modal').dataset.pid = id;
-      document.getElementById('probe-name-modal').dataset.name = name;
-      document.getElementById('probe-site-modal').dataset.site = site;
-      
-      ifaces_list.forEach(iface => {
-        const option = document.createElement('option');
-        option.value = iface;
-        option.textContent = iface;
-        scan_select.appendChild(option);
-        pcap_select.appendChild(option.cloneNode(true));
-      });
-
-
-      if (bsModal) {
-        bsModal.show();
-
-        const homeTabTrigger = modalEl.querySelector('#trcrt-tab');
-        if (homeTabTrigger) {
-          const tab = new bootstrap.Tab(homeTabTrigger);
-          tab.show();
-        }
-      } else {
-        console.warn("Bootstrap Modal not available - cannot show details modal.");
-      }
-    });
-  });
+  const deleteModal = new bootstrap.Modal(document.getElementById('probeDeleteModal'));
 
   probeDeleteButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
@@ -184,8 +137,8 @@
       document.getElementById('probeDeleteModalLabel').textContent = `Delete Probe: ${name}`;
       deleteProbeButton.dataset.id = id;
 
-      if (deleteBsModal) {
-        deleteBsModal.show();
+      if (deleteModal) {
+        deleteModal.show();
       } else {
         console.warn("Bootstrap Modal not available - cannot show delete modal.");
       }
@@ -232,8 +185,8 @@
 
         notificationModal.show();
 
-        if (deleteBsModal) {
-          deleteBsModal.hide();
+        if (deleteModal) {
+          deleteModal.hide();
         }
 
       } else {
@@ -247,8 +200,8 @@
 
         notificationModal.show();
 
-        if (deleteBsModal) {
-          deleteBsModal.hide();
+        if (deleteModal) {
+          deleteModal.hide();
         }
       }
     } catch (err) {

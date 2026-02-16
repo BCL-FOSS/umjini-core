@@ -3,7 +3,7 @@
 Network Management System that leverages open source LLMs to proactively monitor, visualize and troubleshoot on-prem and cloud environments via distributed probes.
 
 <p align="center">
-  <img width="300" height="300" src="https://github.com/BCL-FOSS/umjiniti-core/blob/main/frontend/static/img/bcl/umjiniti.png?raw=true">
+  <img width="300" height="300" src="https://github.com/BCL-FOSS/umjiniti-core/blob/main/frontend/static/img/bcl/umjinilogo.jpg?raw=true">
 </p>
 
 ### About ###

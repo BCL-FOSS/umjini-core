@@ -15,8 +15,7 @@
               <div class="p-3">
                 <!-- Search -->
                 <div class="input-group rounded mb-3">
-                  <input type="search" class="form-control rounded" placeholder="Search">
-                  <span class="input-group-text border-0"><i class="fas fa-search"></i></span>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('chats', cmp_id=cmp_id, obsc=obsc_key, usr=cur_usr) }}" target="_blank">View Chat History</a>
                 </div>
                 <!-- Dropdown -->
                 <div class="mb-3">

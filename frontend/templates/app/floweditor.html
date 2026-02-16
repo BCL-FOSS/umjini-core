@@ -1,5 +1,7 @@
 {% extends 'app/base.html' %}
 
+{% set hide_sidebar = true %}
+
 {% block content %}
 <div class="container-fluid py-4">
   <!--<script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>-->
@@ -131,17 +133,14 @@
 
       if (resp.ok) {
 
-        document.getElementById('notificationModalLabel').textContent = "Loading Flow";
-
-        document.getElementById('notif-modal-text').textContent = `The flow: "${j.name}" with data: "${JSON.stringify(j.flow)}" is being loaded...`;
-
-        notificationModal.show();
-
         editor.clearModuleSelected();
         editor.import(j.flow);
 
-        document.getElementById('notificationModalLabel').textContent = "Flow Loaded Successfully";
+        document.getElementById('flowDropdown').disabled = true;
+        document.getElementById('flowDropdown').classList.add('d-none');
+        document.getElementById('flow-save-name').value = j.name;
 
+        document.getElementById('notificationModalLabel').textContent = "Flow Loaded Successfully";
         document.getElementById('notif-modal-text').textContent = `The flow: "${j.name}" has been loaded successfully.`;
 
         notificationModal.show();
@@ -228,7 +227,7 @@
 
     // Save flow
     document.getElementById('save-flow').addEventListener('click', async ()=>{
-      if (selectedFlow === null){
+      if (selectedFlow === null && flowID === "default") {
         document.getElementById('notificationModalLabel').textContent = "No Probe Selected";
 
         document.getElementById('notif-modal-text').textContent = `Please select a main probe for this flow before saving. Select a probe from the "Assign Flow to Probe" dropdown menu.`;

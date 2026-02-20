@@ -4,12 +4,9 @@ import httpx
 import uuid
 from quart import request, jsonify
 from init_app import app, logger
-from utils.RedisDB import RedisDB
 import os
 import uuid
 from datetime import datetime, timezone
-
-cl_data_db = RedisDB(hostname=os.environ.get('CL_DATA_DB'), port=os.environ.get('CL_DATA_DB_PORT'))
 
 OLLAMA_URL_FLOW = "http://ollama:11434"
 OLLAMA_URL = "http://ollama:11434/api/chat"

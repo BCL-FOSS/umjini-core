@@ -69,41 +69,8 @@ NET_ADMIN_INSTRUCTIONS = (
                             f"'I am a locally hosted, open source {str(os.environ.get('OLLAMA_MODEL'))} model running on ollama.'\n\n"
                         )                    
 ANALYSIS_INSTRUCTIONS = (
-                                "Your task is to analyze the outputs of traceroutes, iperf speedtests, nmap network scans, SNMP statistics and network packet captures from tcpdump and tshark (cli version of wireshark). You will use this analysis to identify, diagnose, troubleshoot and resolve network performance issues, outages and anomalies within current and historical network data and provide suggestions for network performance improvements only based on the specifications provided from the user input. When replying with the results of your analysis, always put 'SmartBot-Analysis: ' before your response.\n"
-
-                                "If the user asks you remediate any issues identified during your analysis, use any of the applicable tools provided by the MCP servers. Do not, under any circumstance, put 'SmartBot-Analysis: ' before your response when performing remediation.\n"
-
-                                "When analyzing network performance test outputs, look for indications of latency, packet loss, jitter, bandwidth bottlenecks, misconfigurations, security vulnerabilities and other factors that could impact network performance. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n"
-
-                                "When analyzing network packet captures, look for indications of unusual traffic patterns, potential security threats, misconfigurations, and other factors that could impact network performance or security. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n"
-
-                                "When analyzing SNMP data, look for indications of device performance issues, misconfigurations, hardware failures, and other factors that could impact network performance. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n"
-                                "When analyzing nmap scan data, look for indications of open ports, potential vulnerabilities, misconfigurations, and other factors that could impact network security and performance. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n" 
-
-                                "When analyzing iperf speedtest data, look for indications of bandwidth bottlenecks, latency, jitter, and other factors that could impact network performance. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n"
-
-                                "When analyzing traceroute data, look for indications of latency, packet loss, routing issues, and other factors that could impact network performance. Provide insights, identify potential issues and recommend improvements based on your analysis of the data.\n"
-
-                                "When providing recommendations for improving network performance, consider best practices for network architecture, device configurations, security hardening, traffic management and other relevant factors. Your recommendations should be actionable and specific to the issues identified in the data you analyze. Always use your expertise in network administration and engineering to inform your analysis and recommendations.\n"
-
-                                "When providing recommendations for improving network security, consider best practices for securing networks according to NIST, PCI DSS, GDPR, HIPAA and SOC 2 compliance standards. Your recommendations should be actionable and specific to the issues identified in the data you analyze. Always use your expertise in network administration and engineering to inform your analysis and recommendations.\n"
-
-                                "When providing insights and analysis, be as detailed and specific as possible. Use your knowledge of network protocols, device behavior, security best practices, and performance optimization techniques to inform your analysis. Provide clear explanations for any issues you identify and the reasoning behind your recommendations.\n"
-
-                                "When diagnosing network anomalies, consider the potential root causes and contributing factors that could lead to anomalous behavior in the network. Provide a clear diagnosis of the issue based on the data you analyze and your expertise in network administration and engineering. Your diagnosis should be specific to the issues identified in the data and should inform your recommendations for resolving the anomaly and preventing future occurrences.\n"
-
-                                "When diagnosing network outages, consider the potential root causes and contributing factors that could lead to a network outage. Provide a clear diagnosis of the issue based on the data you analyze and your expertise in network administration and engineering. Your diagnosis should be specific to the issues identified in the data and should inform your recommendations for resolving the outage and preventing future occurrences.\n"
-
-                                "When diagnosing network security issues, consider the potential vulnerabilities, misconfigurations, and threats that could be present in the data you analyze. Provide a clear diagnosis of the issue based on the data and your expertise in network security. Your diagnosis should be specific to the issues identified in the data and should inform your recommendations for improving network security.\n"
-
-                                "When diagnosing network performance issues, consider the potential root causes and contributing factors. Provide a clear diagnosis of the issue based on the data you analyze and your expertise in network administration and engineering. Your diagnosis should be specific to the issues identified in the data and should inform your recommendations for improving network performance.\n"
-
-                                "When providing recommendations, be sure to consider the potential impact of your recommendations on the overall network architecture and performance. Provide specific steps for implementing your recommendations and any potential trade-offs or considerations that should be taken into account.\n"
-
-                                "Remember, your analysis and recommendations should be based solely on the data provided, the user's specifications and your knowledge of network administration and engineering. Do not make assumptions or provide recommendations that are not supported by the data or your expertise.\n"
-                            )
-
-
+    "Your primary task is to analyze the outputs of traceroutes, iperf speedtests, nmap network scans, SNMP statistics and network packet captures from tcpdump and tshark (cli version of wireshark) to identify, diagnose, troubleshoot and resolve network performance issues, outages and anomalies within current and historical network data. You will provide suggestions for network performance improvements only based on the specifications provided from the user prompt. If you are asked just to conduct an analysis always put 'SmartBot-Analysis:' before your response. If you are asked to remediate any issues found dring your analysis, use any of the applicable tools provided by the MCP servers. If the available tools are insufficient to perform remediation, reply with a detailed report of your findings, the steps you'd take to resolve any issues identified and what exact tools (command line network utilities, firewall/switch configurations etc.) and exact network command line tool commands you would use during the remediation process. Put 'SmartBot-Remediation: ' before your response.\n"
+                                )
 # Helper functions to quantize datetimes to 5-minute increments
 def round_down_to_5min(dt: datetime) -> datetime:
     """Round dt down (floor) to the nearest 5-minute boundary."""
@@ -287,6 +254,86 @@ async def prb_jwt_verification(usr: str, api_key: str, jwt_token: str, request: 
         abort(401)
     except Exception as e:
         return jsonify({f'error occurred: {e}'})
+    
+async def send_processed_data_to_probe(data_to_send):
+    if connected_probes.get(data_to_send["prb_id"]):
+                            await connected_probes.get(data_to_send["prb_id"]).get("broker").publish(message=json.dumps(data_to_send))
+    else:
+        probe_conn_error = {
+            'alert_type': 'outage',
+            'site': data_to_send['site'],
+            'name': data_to_send['name'],
+            'prb_id': data_to_send['prb_id'],
+            'msg': f"Probe with ID {data_to_send['prb_id']} is not connected. Verify network connectivity at the site or resource the probe is located at. Unable to deliver task.",
+            'timestamp': datetime.now(tz=timezone.utc)
+        }
+
+    alert_id = f"alert:{probe_conn_error['prb_id']}:{probe_conn_error['alert_type']}:{probe_conn_error['timestamp']}"
+
+    probe_conn_error['id'] = alert_id
+
+    if await cl_data_db.upload_db_data(id=alert_id, data=probe_conn_error) > 0:
+        logger.info(f"Task result data uploaded successfully with id: {alert_id}")
+
+    await broker.publish(message=json.dumps(probe_conn_error))
+
+async def smartbot_processing(payload: dict, message: dict, headers: dict):
+    async with httpx.AsyncClient() as client:
+        smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+
+        logger.info(smmry_resp.json())
+
+        summary_msg = smmry_resp.json()
+
+        output = summary_msg['output_text']
+        smartbot_alert = None
+
+        smartbot_suggestion = await run_sync(lambda: util_obj.split_text_by_keyword(text=output, keyword='SmartBot-Remediation', cnfrm=True))()
+        smartbot_analysis = await run_sync(lambda: util_obj.split_text_by_keyword(text=output, keyword='SmartBot-Analysis', cnfrm=True))()
+
+        if smartbot_suggestion is not None:
+            smartbot_alert = {
+                            'llm_output': smartbot_suggestion,
+                            'alerts': message['alerts'],
+                            'oper': 'alert'
+                        }
+
+            await send_processed_data_to_probe(data_to_send=smartbot_alert)
+
+        if smartbot_analysis is not None:
+            smartbot_alert = {
+                            'llm_output': smartbot_analysis,
+                            'alerts': message['alerts'],
+                            'oper': 'alert'
+                        }
+
+            await send_processed_data_to_probe(data_to_send=smartbot_alert)
+
+        if smartbot_suggestion is None and smartbot_analysis is None:
+
+            output_message = ""
+            logger.info(f"Request result = {output['output_text']}\n")
+            logger.info(type(output['output_text']))
+
+            data = json.loads(output['output_text'])
+
+            for item in data:
+                net_cmd_output = item['output'][1]
+                logger.info(f"Net command output: {net_cmd_output}")
+                decoded_output = net_cmd_output.encode('utf-8').decode('unicode_escape')
+                lines = decoded_output.split('\n')
+
+                for i, line in enumerate(lines):
+                    net_cmd_data = f'{line}\n'
+                    output_message+=net_cmd_data
+
+                    smartbot_alert = {
+                            'llm_output': output_message,
+                            'alerts': message['alerts'],
+                            'oper': 'alert'
+                        }
+
+            await send_processed_data_to_probe(data_to_send=smartbot_alert)
 
 async def _receive() -> None:
     while True:
@@ -297,7 +344,7 @@ async def _receive() -> None:
 
         if action:
             match action:
-                case 'llm':
+                case 'smartbot_chat':
                     usr_msg_data = {
                         "from": message["from"],
                         "msg": message["msg"],
@@ -393,7 +440,7 @@ async def _receive() -> None:
                                     
                                     NET_ADMIN_INSTRUCTIONS += ANALYSIS_INSTRUCTIONS
 
-                                    payload = {
+                                    analysis_payload = {
                                         'model': os.environ.get('OLLAMA_MODEL'),
                                         'tools':[
                                                 {
@@ -410,7 +457,7 @@ async def _receive() -> None:
                                         'tool_instructions': tool_msg['tool_instructions']
                                     }
 
-                                    smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=smmry_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+                                    smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=analysis_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
 
                                     logger.info(smmry_resp.json())
 
@@ -450,6 +497,63 @@ async def _receive() -> None:
                                 agent_msg_data['final_output'] = 'y'
                         
                                 await broker.publish(message=json.dumps(agent_msg_data))
+
+                case 'smartbot_flow':
+                    logger.info(f"Received flow LLM message: {message}.")
+                    headers = {'content-type': 'application/json'}
+
+                    flow_msg = (
+                        f"{message['tool_output']}\n\n"
+                        f"{message['prompt']}"
+                    )
+                                    
+                    NET_ADMIN_INSTRUCTIONS += ANALYSIS_INSTRUCTIONS
+
+                    flow_payload = {
+                        'model': os.environ.get('OLLAMA_MODEL'),
+                        'tools':[
+                            {
+                                "type": "mcp",
+                                "server_label": "netadmin_mcp_server",
+                                "server_url": f"{message['url']}",
+                                "require_approval": "never",
+                                    },
+                                ],
+                        'usr_input': f"{flow_msg}",
+                        'instructions': NET_ADMIN_INSTRUCTIONS,
+                        'api_key': message['prb_api_key']
+                    }
+
+                    await smartbot_processing(payload=flow_payload, message=message, headers=headers)
+
+                case 'smartbot_task':
+                    logger.info(f"Received flow LLM message: {message}.")
+                    headers = {'content-type': 'application/json'}
+
+                    task_msg = (
+                        f"{message['tool_output']}\n\n"
+                        f"{message['prompt']}"
+                    )
+                                    
+                    NET_ADMIN_INSTRUCTIONS += ANALYSIS_INSTRUCTIONS
+
+                    task_payload = {
+                        'model': os.environ.get('OLLAMA_MODEL'),
+                        'tools':[
+                            {
+                                "type": "mcp",
+                                "server_label": "netadmin_mcp_server",
+                                "server_url": f"{message['url']}",
+                                "require_approval": "never",
+                                    },
+                                ],
+                        'usr_input': f"{task_msg}",
+                        'instructions': NET_ADMIN_INSTRUCTIONS,
+                        'api_key': message['prb_api_key']
+                    }
+
+                    await smartbot_processing(payload=task_payload, message=message, headers=headers)
+
                             
                 case 'ping':
                     logger.debug(f"Received ping message: {message}")
@@ -506,26 +610,7 @@ async def _receive() -> None:
 
                     message.pop('act')
 
-                    if connected_probes.get(message["prb_id"]):
-                        await connected_probes.get(message["prb_id"]).get("broker").publish(message=json.dumps(message))
-                    else:
-                        probe_conn_error = {
-                            'alert_type': 'outage',
-                            'site': message['site'],
-                            'name': message['name'],
-                            'prb_id': message['prb_id'],
-                            'msg': f"Probe with ID {message['prb_id']} is not connected. Verify network connectivity at the site or resource the probe is located at. Unable to deliver task.",
-                            'timestamp': datetime.now(tz=timezone.utc)
-                        }
-
-                        alert_id = f"alert:{probe_conn_error['prb_id']}:{probe_conn_error['alert_type']}:{probe_conn_error['timestamp']}"
-
-                        probe_conn_error['id'] = alert_id
-
-                        if await cl_data_db.upload_db_data(id=alert_id, data=probe_conn_error) > 0:
-                            logger.info(f"Task result data uploaded successfully with id: {alert_id}")
-
-                        await broker.publish(message=json.dumps(probe_conn_error))
+                    await send_processed_data_to_probe(data_to_send=message)
 
                 case "prb_task_cnfrm":  
                     logger.info(f"Received probe task confirmation message: {message}.")
@@ -535,7 +620,7 @@ async def _receive() -> None:
 
                             message['timestamp'] = datetime.now(tz=timezone.utc).isoformat()
                             
-                            task_id = f"task:obj:{message['task_type']}:{message['prb_id']}:{message['timestamp']}"
+                            task_id = f"task:obj:{message['job_type']}:{message['prb_id']}:{message['timestamp']}"
 
                             message['id'] = task_id
                             
@@ -545,48 +630,21 @@ async def _receive() -> None:
                             if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
                                 logger.info(f"Task data updated successfully with id: {message['id']}")
 
+                    if message['job_type'] == 'flow':
+                        if await cl_data_db.upload_db_data(id=message['flow_id'], data={'comment': message['comment']}) > 0:
+                            logger.info(f"Flow comment updated successfully with id: {message['flow_id']}")
+
                     message.pop('act')
                     message.pop('storage_opt')
-                    message['alert_type'] = 'task_confirmation'
-                    message['msg'] = f"Task '{message['task_type']}' was configured at probe '{message['prb_id']}' with output: {message['task_output']}"
+                    message['alert_type'] = 'task_config_confirmation'
+                    message['msg'] = f"Task '{message['job_type']}' was configured at probe '{message['prb_id']}' with output: {message['task_output']}"
 
                     await broker.publish(message=json.dumps(message))
 
                 case "prb_task_rslt":
                     final_output = ""
                     message['alert_type'] = 'task_result'
-                    message['timestamp'] = datetime.now(tz=timezone.utc).isoformat()
-                    
-                    if message['llm'] == 'y':
-                        logger.info(f"Received probe LLM analysis result message: {message}.")
-
-                        llm_request = f"Analyze the following network test or scan result and provide insights, potential issues, and recommendations based on the data:\n\n{message['task_output']}"
-
-                        smmry_payload = {
-                                        'model': os.environ.get('OLLAMA_MODEL'),
-                                        'usr_input':f"{llm_request}",
-                                        'instructions': ANALYSIS_INSTRUCTIONS,
-                                        'url': message['url'],
-                                        'api_key': api,
-                                        'user': message['assigned_user'],
-                                    }
-
-                        smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/analysis", json=smmry_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-                        logger.info(smmry_resp)
-                        logger.info(smmry_resp.json())
-                        summary_msg = smmry_resp.json()
-
-                        final_output+=f'{message["task_output"]}\n\n'
-                        final_output+=summary_msg['output_text']
-                        logger.info(final_output)
-
-                        message['msg'] = final_output
-                    else:
-                        final_output+=message['task_output']
-                        message['msg'] = final_output
-
-                    message.pop('act')
-         
+                    message['msg'] = f"Task '{message['task_type']}' executed at probe '{message['prb_id']}' with output: {message['task_output']}"
                     task_result_id = f"task:result:{message['prb_id']}:{message['task_type']}:{message['timestamp']}"
                     message['id'] = task_result_id
 

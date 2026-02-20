@@ -68,3 +68,19 @@ class Util:
 
         return cleaned_text, analysis_text
     
+    def split_text_by_keyword(self, text: str, keyword: str, cnfrm: bool = False) -> Tuple[str, str]:
+        pattern = re.compile(rf'{re.escape(keyword)}\s*:\s*', re.IGNORECASE)
+        
+        match = pattern.search(text)
+
+        if not match and cnfrm is True:
+            return None
+
+        if not match:
+            return text, ""
+        
+        text_before = text[:match.start()].rstrip()
+        text_after = text[match.end():].lstrip()
+        
+        return text_before, text_after
+    

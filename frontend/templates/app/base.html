@@ -479,26 +479,24 @@
     let selectedProbe = document.getElementById("mcp-dropdown");
     const chatInput = document.getElementById("chat-input");
     const chatSend = document.getElementById("chat-send");
-    const smartbotInitSwitch = document.getElementById("smartbotInitSwitch");
-    const flowbotInitSwitch = document.getElementById("flowbotInitSwitch");
+    
     const pcapInit = document.getElementById("pcap-init");
     const scanInit = document.getElementById("scan-init");
     const iperfInit = document.getElementById("iperf-init");
     const trcrtInit = document.getElementById("trcrt-init");
-    const taskDays = document.getElementById('task-days');
-    const taskMonths = document.getElementById('task-months');
-    const taskHours = document.getElementById('task-hours');
-    const taskMinutes = document.getElementById('task-minutes');
-    const taskDom = document.getElementById('task-dom');
 
     const taskToggleInit = document.getElementById('task-toggle-init');
     const taskRescheduleInit = document.getElementById('task-reschedule-init');
     const taskDeleteInit = document.getElementById('task-delete-init');
+    const taskSmartBotSwitch = document.getElementById('taskSmartBotSwitch');
+    const taskSmartBotPrompt = document.getElementById('taskSmartBotPrompt');
 
     const netvisRunTraceButton = document.getElementById('netvis-trace-run-btn');
     const netvisRunPerfButton = document.getElementById('netvis-perf-run-btn');
     const netvisRunScanButton = document.getElementById('netvis-scan-run-btn');
     const netvisRunPcapButton = document.getElementById('netvis-pcap-run-btn');
+
+    const flowScheduleInit = document.getElementById('flow-schedule-init');
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -565,7 +563,7 @@
       chatInput.value = "";
 
       ws.send(JSON.stringify({
-        act: "llm",
+        act: "smartbot_chat",
         url: selectedProbe.value,
         usr: currentUser,
         prb_id: selectedProbe.dataset.pid,
@@ -581,6 +579,76 @@
 
     // LLM Chat event listeners
     chatSend.addEventListener("click", sendMessage);
+
+    flowScheduleInit.addEventListener("click", async function() {
+
+      const spinner = this.querySelector('.spinner-grow');
+      const buttonText = this.querySelector('.flow-schedule-button-text');
+
+      const flowDays = document.getElementById('flow-days');
+      const flowMonths = document.getElementById('flow-months');
+      const flowHours = document.getElementById('flow-hours');
+      const flowMinutes = document.getElementById('flow-minutes');
+      const flowDom = document.getElementById('flow-dom');
+
+      if (!flowDays.value && !flowMonths.value && !flowHours.value && !flowMinutes.value && !flowDom.value) {
+        document.getElementById('notificationModalLabel').textContent = 'Missing Schedule Parameters';
+        document.getElementById('notif-modal-text').innerText = 'Please provide at least one scheduling parameter (days, months, hours, minutes, or day of month) to schedule the flow task.';
+        notificationModal.show();
+        return;
+      }
+
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Scheduling Flow...";
+      this.disabled = true;
+
+      const id = document.getElementById('flow-schedule-id-holder').dataset.id;
+      const name = document.getElementById('flow-schedule-name-holder').dataset.name;
+      const prb_id = document.getElementById('flow-schedule-prb_id-holder').dataset.prb_id;
+      const flow = document.getElementById('flow-schedule-flow-holder').dataset.flow;
+
+      let taskData = {
+        "act": "prb_task_init",
+        "prb_id": prb_id,
+        "user_id": curUsrID,
+        "flow": flow,
+        "flow_name": name,
+        "flow_id": id,
+        "oper": "init_task",
+      };
+
+      if (flowDays.value){
+        taskData["days"] = flowDays.value;
+      }
+
+      if (flowMonths.value){
+        taskData["months"] = flowMonths.value;
+      }
+
+      if (flowHours.value){
+        taskData["hours"] = flowHours.value;
+      }
+
+      if (flowMinutes.value){
+        taskData["minutes"] = flowMinutes.value;
+      }
+
+      if (flowDom.value){
+        taskData["dom"] = flowDom.value;
+      }
+
+      ws.send(JSON.stringify(taskData));
+
+      spinner.classList.remove('d-inline-block');
+      spinner.classList.add('d-none');
+      buttonText.textContent = "Schedule Flow";
+      this.disabled = false;
+
+      document.getElementById('notificationModalLabel').textContent = 'Flow Task Scheduled';
+      document.getElementById('notif-modal-text').innerText = `Flow ${name} is being scheduled on probe ${prb_id}. You will receive a notification when it has been initiated.`;
+      notificationModal.show();
+    });
 
     // Probe Task init event listeners
     trcrtInit.addEventListener("click", async function () {
@@ -603,6 +671,12 @@
       const traceOptions = document.getElementById("trcrt-options").value;
       const tracePacketLen = document.getElementById("trcrt-packetlen").value;
       const current_pid =  this.dataset.pid;
+
+      const taskDays = document.getElementById('task-days');
+      const taskMonths = document.getElementById('task-months');
+      const taskHours = document.getElementById('task-hours');
+      const taskMinutes = document.getElementById('task-minutes');
+      const taskDom = document.getElementById('task-dom');
       
 
       if (!traceType || !traceTarget) {
@@ -621,6 +695,7 @@
 
       let taskData = {
         "act": "prb_task_init",
+        "auto_type": 'task',
         "prb_id": current_pid,
         "task": traceType,
         "prms": {
@@ -628,23 +703,12 @@
         }
       };
 
-      if (prbExec.checked){
-        taskData["oper"] = "exec";
-        taskData["user_id"] = curUsrID;
-        ws.send(JSON.stringify(taskData));
-
-        spinner.classList.remove('d-inline-block');
-        spinner.classList.add('d-none');
-        buttonText.textContent = "Trace";
-        
-        // Enable the button
-        this.disabled = false;
-
-        document.getElementById('notificationModalLabel').textContent = 'Traceroute Task Initiated';
-        document.getElementById('notif-modal-text').innerText = 'Network path trace task initiated. You will receive a notification when the trace is complete and the results are available for review.';
-
-        notificationModal.show();
-      } 
+      if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
+        taskData["llm"] = 'smartbot';
+        taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
+        taskData["alerts"] = {};
+        taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
+      }
 
       if (taskDays.value){
         taskData["days"] = taskDays.value;
@@ -676,14 +740,6 @@
 
       if (tracePacketLen) {
         taskData["prms"]["packetlen"] = tracePacketLen;
-      }
-
-      if (smartbotInitSwitch.checked){
-        taskData["smartbot"] = 'y';
-      } 
-
-      if (flowbotInitSwitch.checked){
-        taskData["flowbot"] = 'y';
       }
 
       taskData["oper"] = "init_task";
@@ -722,6 +778,12 @@
       const spdtstOptions = document.getElementById("spdtst-options").value;
       const current_pid =  this.dataset.pid;
 
+      const taskDays = document.getElementById('task-days');
+      const taskMonths = document.getElementById('task-months');
+      const taskHours = document.getElementById('task-hours');
+      const taskMinutes = document.getElementById('task-minutes');
+      const taskDom = document.getElementById('task-dom');
+
       if (!spdtstType) {
         spinner.classList.remove('d-inline-block');
         spinner.classList.add('d-none');
@@ -750,23 +812,12 @@
         taskData["prms"]["options"] = spdtstOptions;
       }
 
-      if (prbExec.checked){
-        taskData["oper"] = "exec";
-        taskData["user_id"] = curUsrID;
-        ws.send(JSON.stringify(taskData));
-
-        spinner.classList.remove('d-inline-block');
-        spinner.classList.add('d-none');
-        buttonText.textContent = "Test";
-        
-        // Enable the button
-        this.disabled = false;
-
-        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
-        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
-
-        notificationModal.show();
-      } 
+      if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
+        taskData["llm"] = 'smartbot';
+        taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
+        taskData["alerts"] = {};
+        taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
+      }
 
       if (taskDays.value){
         taskData["days"] = taskDays.value;
@@ -786,14 +837,6 @@
 
       if (taskDom.value){
         taskData["dom"] = taskDom.value;
-      }
-
-      if (smartbotInitSwitch.checked){
-        taskData["smartbot"] = 'y';
-      } 
-
-      if (flowbotInitSwitch.checked){
-        taskData["flowbot"] = 'y';
       }
 
       taskData["oper"] = "init_task";
@@ -834,6 +877,12 @@
       const scanOptions = document.getElementById("scan-options").value;
       const current_pid =  this.dataset.pid;
 
+      const taskDays = document.getElementById('task-days');
+      const taskMonths = document.getElementById('task-months');
+      const taskHours = document.getElementById('task-hours');
+      const taskMinutes = document.getElementById('task-minutes');
+      const taskDom = document.getElementById('task-dom');
+
       if (!scanType && !scanTarget) {
         spinner.classList.remove('d-inline-block');
         spinner.classList.add('d-none');
@@ -865,23 +914,12 @@
         taskData["prms"]["options"] = scanOptions;
       }
 
-      if (prbExec.checked){
-        taskData["oper"] = "exec";
-        taskData["user_id"] = curUsrID;
-        ws.send(JSON.stringify(taskData));
-
-        spinner.classList.remove('d-inline-block');
-        spinner.classList.add('d-none');
-        buttonText.textContent = "Test";
-        
-        // Enable the button
-        this.disabled = false;
-
-        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
-        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
-
-        notificationModal.show();
-      } 
+      if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
+        taskData["llm"] = 'smartbot';
+        taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
+        taskData["alerts"] = {};
+        taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
+      }
 
       if (taskDays.value){
         taskData["days"] = taskDays.value;
@@ -901,14 +939,6 @@
 
       if (taskDom.value){
         taskData["dom"] = taskDom.value;
-      }
-
-      if (smartbotInitSwitch.checked){
-        taskData["smartbot"] = 'y';
-      } 
-
-      if (flowbotInitSwitch.checked){
-        taskData["flowbot"] = 'y';
       }
 
       taskData["oper"] = "init_task";
@@ -949,6 +979,12 @@
       const pcapDuration = document.getElementById("pcap-duration-target").value;
       const current_pid =  this.dataset.pid;
 
+      const taskDays = document.getElementById('task-days');
+      const taskMonths = document.getElementById('task-months');
+      const taskHours = document.getElementById('task-hours');
+      const taskMinutes = document.getElementById('task-minutes');
+      const taskDom = document.getElementById('task-dom');
+
       if (!pcapType) {
         spinner.classList.remove('d-inline-block');
         spinner.classList.add('d-none');
@@ -984,23 +1020,12 @@
         taskData["prms"]["cap_count"] = pcapCount;
       }
 
-      if (prbExec.checked){
-        taskData["oper"] = "exec";
-        taskData["user_id"] = curUsrID;
-        ws.send(JSON.stringify(taskData));
-
-        spinner.classList.remove('d-inline-block');
-        spinner.classList.add('d-none');
-        buttonText.textContent = "Test";
-        
-        // Enable the button
-        this.disabled = false;
-
-        document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
-        document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
-
-        notificationModal.show();
-      } 
+      if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
+        taskData["llm"] = 'smartbot';
+        taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
+        taskData["alerts"] = {};
+        taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
+      }
 
       if (taskDays.value){
         taskData["days"] = taskDays.value;
@@ -1020,14 +1045,6 @@
 
       if (taskDom.value){
         taskData["dom"] = taskDom.value;
-      }
-
-      if (smartbotInitSwitch.checked){
-        taskData["smartbot"] = 'y';
-      } 
-
-      if (flowbotInitSwitch.checked){
-        taskData["flowbot"] = 'y';
       }
 
       taskData["oper"] = "init_task";
@@ -1066,11 +1083,13 @@
       const enabled = document.getElementById("task-toggle-enabled-holder");
       const comment = document.getElementById("task-toggle-comment-holder");
       const name = document.getElementById("task-toggle-name-holder");
+      const id = document.getElementById("task-toggle-id-holder").dataset.id;
 
       let taskData = {
         "act": "prb_task_init",
         "prb_id": probe_id.dataset.prb_id,
-        "comment": comment.dataset.comment
+        "comment": comment.dataset.comment,
+        "task_id": id
       };  
 
       if (enabled.dataset.enabled === "enabled"){
@@ -1115,6 +1134,7 @@
       const enabled = document.getElementById("task-reschedule-enabled-holder");
       const comment = document.getElementById("task-reschedule-comment-holder");
       const name = document.getElementById("task-reschedule-name-holder");
+      const id = document.getElementById("task-reschedule-id-holder").dataset.id;
 
       const days = document.getElementById("task-reschedule-days");
       const months = document.getElementById("task-reschedule-months");
@@ -1128,7 +1148,8 @@
       let taskData = {
         "act": "prb_task_init",
         "prb_id": probe_id.dataset.prb_id,
-        "comment": comment.dataset.comment
+        "comment": comment.dataset.comment,
+        "task_id": id
       };  
 
       if (!days.value && !months.value && !hours.value && !minutes.value && !dom.value && !smartbotSwitch.checked && !flowbotSwitch.checked){
@@ -1207,12 +1228,15 @@
       const probe_id = document.getElementById("task-delete-prb_id-holder");
       const comment = document.getElementById("task-delete-comment-holder");
       const name = document.getElementById("task-delete-name-holder");
+      const id = document.getElementById("task-delete-id-holder").dataset.id;
 
       let taskData = {
         "act": "prb_task_init",
         "prb_id": probe_id.dataset.prb_id,
         "comment": comment.dataset.comment,
-        "oper": "rm_task"
+        "oper": "rm_task",
+        "task_id": id
+
       };  
 
       ws.send(JSON.stringify(taskData));

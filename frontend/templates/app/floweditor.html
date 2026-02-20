@@ -62,7 +62,6 @@
               </button>
               <ul class="dropdown-menu" aria-labelledby="probeDropdown">
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="smartbot"><i class="fas fa-robot"></i>Smartbot</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="flowbot"><i class="fas fa-robot"></i>FlowBot</div></li>
               </ul>
             </div>
           </li>
@@ -103,9 +102,15 @@
     const mntrURL = "{{ mntr_url }}";
     const flowID = "{{ flow_id }}";
     const prbID = "{{ prb_id }}";
+
     let nodeProbeCounter = 0;
     let currentProbeNodes = {};
     let currentSelectedProbe = null;
+
+    let agentCounter = 0;
+    let currentAgentNodes = {};
+    let currentSelectedAgent = null;
+
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
     var id = document.getElementById("drawflow");
     const editor = new Drawflow(id);
@@ -142,6 +147,11 @@
       if (currentSelectedProbe.data.type === 'probe') {
         nodeProbeCounter++;
         currentProbeNodes[id] = currentSelectedProbe;
+      } else if (currentSelectedProbe.data.type === 'agent') {
+        agentCounter++;
+        currentAgentNodes[id] = currentSelectedProbe;
+      } else {
+        currentSelectedAgent = editor.getNodeFromId(id);
       }
     })
 
@@ -150,6 +160,11 @@
       if (currentProbeNodes.hasOwnProperty(id)) {
         delete currentProbeNodes[id];
         nodeProbeCounter--;
+      } else if (currentAgentNodes.hasOwnProperty(id)) {
+        delete currentAgentNodes[id];
+        agentCounter--;
+      } else if (currentSelectedAgent && currentSelectedAgent.id === id) {
+        currentSelectedAgent = null;
       }
     })
 
@@ -499,9 +514,37 @@
               </div>
               `;
           data = { type: 'probe', name: name };
-          editor.addNode(name, 0, 3, pos_x, pos_y, name, data, probe);
+          editor.addNode(name, 0, 0, pos_x, pos_y, name, data, probe);
 
         }
+      } else if (name === 'smartbot') {
+        if (agentCounter === 1) {
+          document.getElementById('notificationModalLabel').textContent = "Agent Limit Reached";
+
+          document.getElementById('notif-modal-text').textContent = `You have reached the maximum number of agents allowed. Please remove an agent before adding another one.`;
+
+          notificationModal.show();
+          return false;
+        } else {
+          var bot = `
+            <div>
+              <div class="title-box"><i class="fab fa-telegram-plane"></i>${name === 'smartbot' ? 'Smart Bot' : 'Flow Bot'}</div>
+              <div class="box">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Bot Name</label>
+                  <input type="text" class="form-control" placeholder="Enter a name for this bot..." df-bot-name>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Bot Prompt</label>
+                  <input type="text" class="form-control" placeholder="Enter a prompt for this bot..." df-bot-prompt>
+                </div>
+              </div>
+            </div>
+              `;
+          data = {type: 'agent', name: name}
+          editor.addNode(name, 0, 0, pos_x, pos_y, name, data, bot );
+        }
+
       } else {
         switch (name) {
           case 'slack':
@@ -513,7 +556,7 @@
             </div>
             `;
             data = {type: 'alert', name: name}
-            editor.addNode(name, 1, 0, pos_x, pos_y, name, data, slackchat );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, slackchat );
             break;
           case 'jsm':
             var jira = `
@@ -524,7 +567,7 @@
             </div>
             `;
             data = {type: 'alert', name: name}
-            editor.addNode(name, 1, 0, pos_x, pos_y, name, data, jira );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, jira );
             break;
           case 'email':
             var email = `
@@ -535,7 +578,7 @@
             </div>
               `;
             data = {type: 'alert', name: name}
-            editor.addNode(name, 1, 0, pos_x, pos_y, name, data, email );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, email );
             break;
           case 'scan_arp':
             var arp = `
@@ -555,7 +598,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_custom':
             var arp = `
@@ -575,7 +618,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_dev_id':
             var arp = `
@@ -598,7 +641,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_dev_fngr':
             var arp = `
@@ -621,7 +664,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_full':
             var arp = `
@@ -636,7 +679,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_snmp':
             var arp = `
@@ -665,7 +708,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'scan_port':
             var arp = `
@@ -685,7 +728,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'test_srvr':
             var tool = `
@@ -705,7 +748,7 @@
               </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, tool );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
             break;
           case 'test_clnt':
             var tool = `
@@ -730,7 +773,7 @@
               </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, tool );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
             break;
           case 'trcrt':
             var tool = `
@@ -753,7 +796,7 @@
               </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, tool );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
             break;
           case 'trcrt_dns': 
               var tool = `
@@ -776,7 +819,7 @@
               </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, tool );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
             break;
           case 'pcap_lcl':
             var arp = `
@@ -796,7 +839,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
           case 'pcap_tux':
           case 'pcap_win':
@@ -838,27 +881,7 @@
             </div>
               `;
             data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 3, pos_x, pos_y, name, data, arp );
-            break;
-          case 'smartbot':
-          case 'flowbot':
-            var bot = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>${name === 'smartbot' ? 'Smart Bot' : 'Flow Bot'}</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Bot Name</label>
-                  <input type="text" class="form-control" placeholder="Enter a name for this bot..." df-bot-name>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Bot Prompt</label>
-                  <input type="text" class="form-control" placeholder="Enter a prompt for this bot..." df-bot-prompt>
-                </div>
-              </div>
-            </div>
-              `;
-            data = {type: 'agent', name: name}
-            editor.addNode(name, 1, 0, pos_x, pos_y, name, data, bot );
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
             break;
         }
 

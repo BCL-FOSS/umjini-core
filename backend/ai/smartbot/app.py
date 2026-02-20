@@ -227,7 +227,7 @@ async def multitools():
 
         return jsonify(response_payload)
     
-    if f"SmartBot-Analysis: ".lower() in ollama_out_clean.lower():
+    if f"SmartBot-Remediation: ".lower() in ollama_out_clean.lower():
         logger.info(tools[0].get('server_url'))
 
         response_payload={
@@ -239,7 +239,7 @@ async def multitools():
         logger.info(response_payload)
 
         return jsonify(response_payload)
-
+    
     parsed = None
     try:
         parsed = json.loads(ollama_out_clean)

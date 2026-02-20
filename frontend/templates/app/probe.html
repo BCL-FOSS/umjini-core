@@ -46,7 +46,7 @@
                         </div>
                       </a>
                     </li>
-                    <li class="p-2 border-bottom" data-value="create-task">
+                    <li class="p-2 border-bottom" data-value="task-create">
                       <a href="#!" class="d-flex justify-content-between">
                         <div class="d-flex flex-row">
                           <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava1-bg.webp"
@@ -226,16 +226,14 @@
                             </td>
                             <td>
                                 <div class="input-group mb-3">
-                                  <button type="button" class="btn btn-sm btn-dark ms-2 flow-edit-btn"
-                                      data-id="{{ flow.id|e }}"
-                                      data-name="{{ flow.name }}"
-                                      data-probe="{{ flow.probe|e }}">
+                                  <a href="{{ url_for('floweditor', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id, flow_id=flow.id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
                                     Edit
-                                  </button>
-                                  <button type="button" class="btn btn-sm btn-dark ms-2 flow-schedule-btn"
+                                  </a>
+                                  <button type="button" class="btn btn-sm btn-outline-secondary ms-2 flow-schedule-btn"
                                       data-id="{{ flow.id|e }}"
                                       data-name="{{ flow.name }}"
-                                      data-probe="{{ flow.probe|e }}">
+                                      data-probe="{{ flow.probe|e }}"
+                                      data-flow="{{ flow.flow|tojson|e }}">
                                     Schedule
                                   </button>
                                   <button class="btn btn-sm btn-outline-danger ms-2 flow-delete-btn"
@@ -280,7 +278,7 @@
                                   <img src="{{ url_for('static', filename='img/bcl/task_item.svg') }}" class="avatar avatar-sm rounded-circle me-2"/>
                                 </div>
                                 <div class="my-auto">
-                                  <h6 class="mb-0 text-xs">{{ task.task_type }}</h6>
+                                  <h6 class="mb-0 text-xs">{{ task.job_type }}</h6>
                                 </div>
                               </div>
                             </td>
@@ -314,7 +312,7 @@
                                     data-site="{{ task.site|e }}"
                                     data-prb_id="{{ task.prb_id|e }}"
                                     data-timestamp="{{ task.timestamp|e }}"
-                                    data-task_type="{{ task.task_type|e }}"
+                                    data-job_type="{{ task.job_type|e }}"
                                     data-id="{{ task.id }}"
                                     data-enabled="{{ task.enabled|e }}"
                                     data-comment="{{ task.comment|e }}">
@@ -325,7 +323,7 @@
                                     data-site="{{ task.site|e }}"
                                     data-prb_id="{{ task.prb_id|e }}"
                                     data-timestamp="{{ task.timestamp|e }}"
-                                    data-task_type="{{ task.task_type|e }}"
+                                    data-job_type="{{ task.job_type|e }}"
                                     data-id="{{ task.id }}"
                                     data-enabled="{{ task.enabled|e }}"
                                     data-comment="{{ task.comment|e }}">
@@ -336,7 +334,7 @@
                                     data-site="{{ task.site|e }}"
                                     data-prb_id="{{ task.prb_id|e }}"
                                     data-timestamp="{{ task.timestamp|e }}"
-                                    data-task_type="{{ task.task_type|e }}"
+                                    data-job_type="{{ task.job_type|e }}"
                                     data-id="{{ task.id }}"
                                     data-enabled="{{ task.enabled|e }}"
                                     data-comment="{{ task.comment|e }}">
@@ -377,7 +375,7 @@
                           <form method="POST">
                             <div class="form-floating mb-3">
                               <label class="form-label">Trace Type</label>
-                              <select id="trcrt-dropdown" class="form-select" aria-label="Default select example">
+                              <select id="trcrt-dropdown" class="form-select" aria-label="Select Trace Type" aria-placeholder="Choose Trace Type">
                                 <option value="trcrt">Traceroute</option>
                                 <option value="trcrt_dns">DNS Traceroute</option>
                               </select>
@@ -568,20 +566,25 @@
                         <div class="row mb-3">
                           <div class="col-6">
                             <div class="form-check form-switch">
-                              <input class="form-check-input" type="checkbox" role="switch" id="smartbotInitSwitch">
-                              <label class="form-check-label" for="smartbotInitSwitch">Enable SmartBot</label>
+                              <input class="form-check-input" type="checkbox" role="switch" id="taskSmartBotSwitch">
+                              <label class="form-check-label" for="taskSmartBotSwitch">Send to SmartBot for analysis</label>
                             </div>
                           </div>
                           <div class="col-6">
                             <div class="form-check form-switch">
-                              <input class="form-check-input" type="checkbox" role="switch" id="flowbotInitSwitch">
-                              <label class="form-check-label" for="flowbotInitSwitch">Enable FlowBot</label>
+                              <label class="form-check-label" for="taskSmartBotPrompt">SmartBot Prompt</label>
+                              <input class="form-control" type="text" id="taskSmartBotPrompt" placeholder="Tell the agent what to do with the results of this task. For example, 'Analyze the traceroute results and provide insights on potential network issues.'">
                             </div>
                           </div>
                         </div>
                         <div class="row mb-3">
                           <div class="col-12">
-                            <input class="form-control" type="text" id="task-llm-query" placeholder="Tell the agent what to do with the results of this task. For example, 'Analyze the traceroute results and provide insights on potential network issues.'">
+                            <label class="form-label">Select SmartBot Alert Tool</label>
+                            <select id="taskAlertDropdown" class="form-select">
+                              <option value="email">Email</option>
+                              <option value="jira">Jira</option>
+                              <option value="slack">Slack</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -822,6 +825,74 @@
   </div>
 </div>
 
+<div class="modal fade" id="flowScheduleModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="flowScheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="flowScheduleModalLabel">Schedule Flow</h5>
+        <div id="flow-schedule-id-holder"></div>
+        <div id="flow-schedule-name-holder"></div>
+        <div id="flow-schedule-prb_id-holder"></div>
+        <div id="flow-schedule-flow-holder"></div>
+       
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form method="POST">
+          <div class="form-floating mb-3">
+            <h6 class="form-label bold">Flow Schedule Settings</h6>
+          </div>
+          <div class="form-floating mb-3">
+            <p class="form-text">Use the fields below to set up a custom schedule for the selected flow. Enter times ascomma-separated values or ranges.</p>
+            <div class="row mb-3">
+                <div class="col-12">
+                  <label class="form-label">Choose day(s) of week to run flow. Available values: 0 (Sunday) to 6 (Saturday).</label>
+                  <input class="form-control" type="text" id="flow-days">
+                  <div class="form-text">To run every Sunday, Wednesday and Saturday enter as such: 0,3,6.</div>
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose minute(s) to run flow. Available values: 0 to 59.</label>
+                  <input class="form-control" type="text" id="flow-minutes">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 5,50,5). The flow would run every 5 minutes from 5 to 50. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose day(s) of month to run flow. Available values: 1 to 31.</label>
+                  <input class="form-control" type="text" id="flow-dom">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,31,1). The flow would run every day from 1 to 31. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose month(s) to run flow. Available values: 1 to 12.</label>
+                  <input class="form-control" type="text" id="flow-months">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 1,12,1). The flow would run every month from January to December. </div> 
+                </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-12">
+                  <label class="form-label">Choose hour(s) to run flow. Available values: 0 to 23.</label>
+                  <input class="form-control" type="text" id="flow-hours">
+                  <div class="form-text">For specific intervals, enter start,end,interval (e.g., 0,23,1). The flow would run every hour from 0 to 23. </div> 
+                </div>  
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="flow-schedule-init">
+          <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true"></span>
+          <span class="flow-schedule-button-text">Reschedule</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script type="text/javascript">
     const curUser = "{{ cur_usr }}";
     const mntrURL = "{{ mntr_url }}";
@@ -841,9 +912,8 @@
 
     // Flow action buttons
     const flowDeleteButtons = document.querySelectorAll('.flow-delete-btn');
-    const flowEditButtons = document.querySelectorAll('.flow-edit-btn');
+    const flowScheduleButtons = document.querySelectorAll('.flow-schedule-btn');
     const deleteFlowButton = document.getElementById('delete-flow');
-    const editFlowButton = document.getElementById('edit-flow');
 
     // Flow modal text elements
     const editFlowText = document.getElementById('edit-flow-text');
@@ -859,18 +929,7 @@
     // Flow tasks modals
     const flowDeleteModal = new bootstrap.Modal(document.getElementById('flowDeleteModal'));
     const flowEditModal = new bootstrap.Modal(document.getElementById('flowEditModal'));
-
-    flowEditButtons.forEach(button => {
-      button.addEventListener('click', async (e) => {
-        e.stopPropagation()
-        const id = button.dataset.id || '';
-        const name = button.dataset.name || '';
-        const probe = button.dataset.probe || '';
-        editFlowLabel.textContent = `Edit Flow: ${name}`;
-        editFlowText.textContent = `Are you sure you want to edit flow '${name}' on probe '${probe}'?`;
-        flowEditModal.show();
-      });
-    });
+    const flowScheduleModal = new bootstrap.Modal(document.getElementById('flowScheduleModal'));
 
     flowDeleteButtons.forEach(button => {
       button.addEventListener('click', (e) => {
@@ -884,6 +943,25 @@
       });
     });
 
+    flowScheduleButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const id = button.dataset.id || '';
+        const name = button.dataset.name || '';
+        const probe = button.dataset.probe || '';
+        const flow = button.dataset.flow || '';
+       
+        document.getElementById('flow-schedule-flow-holder').dataset.flow = flow;
+        document.getElementById('flow-schedule-id-holder').dataset.id = id;
+        document.getElementById('flow-schedule-name-holder').dataset.name = name;
+        document.getElementById('flow-schedule-prb_id-holder').dataset.prb_id = probe;
+        document.getElementById('flowScheduleModalLabel').textContent = `Schedule Flow: ${name}`;
+        
+
+        flowScheduleModal.show();
+      });
+    });
+
     taskToggleButtons.forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation(); // prevent row click selection (if undesired)
@@ -891,18 +969,18 @@
         const site = btn.dataset.site || '';
         const prb_id = btn.dataset.prb_id || '';
         const timestamp = btn.dataset.timestamp || '';
-        const task_type = btn.dataset.task_type || '';
+        const job_type = btn.dataset.job_type || '';
         const enabled = btn.dataset.enabled || '';
         const comment = btn.dataset.comment || '';
         const id = btn.dataset.id || '';
         // Fill modal fields
-        document.getElementById('taskToggleModalLabel').textContent = `Toggle Task - ${name} ${task_type}`;
+        document.getElementById('taskToggleModalLabel').textContent = `Toggle Task - ${name} ${job_type}`;
         document.getElementById('task-toggle-msg').textContent = `Are you sure you want to toggle the task: ${name} currently set to ${enabled}`;
         document.getElementById('task-toggle-id-holder').dataset.id = id;
         document.getElementById('task-toggle-comment-holder').dataset.comment = comment;
         document.getElementById('task-toggle-enabled-holder').dataset.enabled = enabled;
         document.getElementById('task-toggle-name-holder').dataset.name = name;
-        document.getElementById('task-toggle-type-holder').dataset.type = task_type;
+        document.getElementById('task-toggle-type-holder').dataset.type = job_type;
         document.getElementById('task-toggle-site-holder').dataset.site = site;
         document.getElementById('task-toggle-timestamp-holder').dataset.timestamp = timestamp;
         document.getElementById('task-toggle-prb_id-holder').dataset.prb_id = prb_id;
@@ -921,17 +999,17 @@
         const site = btn.dataset.site || '';
         const prb_id = btn.dataset.prb_id || '';
         const timestamp = btn.dataset.timestamp || '';
-        const task_type = btn.dataset.task_type || '';
+        const job_type = btn.dataset.job_type || '';
         const enabled = btn.dataset.enabled || '';
         const comment = btn.dataset.comment || '';
         const id = btn.dataset.id || '';
         // Fill modal fields
-        document.getElementById('taskRescheduleModalLabel').textContent = `Reschedule Task - ${name} ${task_type}`;
+        document.getElementById('taskRescheduleModalLabel').textContent = `Reschedule Task - ${name} ${job_type}`;
         document.getElementById('task-reschedule-id-holder').dataset.id = id;
         document.getElementById('task-reschedule-comment-holder').dataset.comment = comment;
         document.getElementById('task-reschedule-enabled-holder').dataset.enabled = enabled;
         document.getElementById('task-reschedule-name-holder').dataset.name = name;
-        document.getElementById('task-reschedule-type-holder').dataset.type = task_type;
+        document.getElementById('task-reschedule-type-holder').dataset.type = job_type;
         document.getElementById('task-reschedule-site-holder').dataset.site = site;
         document.getElementById('task-reschedule-timestamp-holder').dataset.timestamp = timestamp;
         document.getElementById('task-reschedule-prb_id-holder').dataset.prb_id = prb_id;
@@ -951,18 +1029,18 @@
         const site = btn.dataset.site || '';
         const prb_id = btn.dataset.prb_id || '';
         const timestamp = btn.dataset.timestamp || '';
-        const task_type = btn.dataset.task_type || '';
+        const job_type = btn.dataset.job_type || '';
         const enabled = btn.dataset.enabled || '';
         const comment = btn.dataset.comment || '';
         const id = btn.dataset.id || '';
         // Fill modal fields
-        document.getElementById('taskDeleteModalLabel').textContent = `Delete Task - ${name} ${task_type}`;
+        document.getElementById('taskDeleteModalLabel').textContent = `Delete Task - ${name} ${job_type}`;
         document.getElementById('task-delete-msg').textContent = `Are you sure you want to delete the task: ${name} currently set to ${enabled}`;
         document.getElementById('task-delete-id-holder').dataset.id = id;
         document.getElementById('task-delete-comment-holder').dataset.comment = comment;
         document.getElementById('task-delete-enabled-holder').dataset.enabled = enabled;
         document.getElementById('task-delete-name-holder').dataset.name = name;
-        document.getElementById('task-delete-type-holder').dataset.type = task_type;
+        document.getElementById('task-delete-type-holder').dataset.type = job_type;
         document.getElementById('task-delete-site-holder').dataset.site = site;
         document.getElementById('task-delete-timestamp-holder').dataset.timestamp = timestamp;
         document.getElementById('task-delete-prb_id-holder').dataset.prb_id = prb_id;
@@ -987,30 +1065,6 @@
           alert(`Flow delete executed successfully.\n`+JSON.stringify(j));
         } else {
           alert(`Flow delete failed.`);
-        }
-      } catch (err) {
-        console.error('Network or server error:', err);
-      }
-    });
-
-    editFlowButton.addEventListener('click', async function() {
-      const id = flowEditIdHolder.dataset.id;
-      const probe = flowEditProbeHolder.dataset.probe;
-      const name  = flowEditNameHolder.dataset.name;
-
-      const data = editor.export();
-      alert(savename);
-      const flow = JSON.stringify(data, null,4)
-      const payload = { id: id, flow: flow, probe: probe, unm: "{{ user }}" , name: name}
-
-      try {
-        const resp = await fetch(`https://${mntrURL}/flowedit?usr=${curUser}`, {method: 'POST', credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
-
-        if (resp.ok) {
-          const j = await resp.json()
-          alert(`Flow edit executed successfully.\n`+JSON.stringify(j));
-        } else {
-          alert(`Flow edit failed.`);
         }
       } catch (err) {
         console.error('Network or server error:', err);

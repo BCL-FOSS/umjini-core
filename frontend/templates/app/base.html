@@ -215,16 +215,9 @@
                 <i class="fa fa-cog cursor-pointer"></i>
               </a>
               <ul id="settings-list" class="dropdown-menu  dropdown-menu-end  px-2 py-3 me-sm-n4" aria-labelledby="dropdownSettingsButton">
-                <li><a class="dropdown-item" href="#">Action</a></li>
-                <li><a class="dropdown-item" href="#">Another action</a></li>
-                <li><a class="dropdown-item" href="#">Something else here</a></li>
-                
+                <li><a class="btn btn-outline-primary dropdown-item" id="add-api">Generate API Key</a></li>
+                <li><a class="btn btn-outline-secondary dropdown-item" id="reset-api">Reset API Key</a></li>
               </ul>
-            </li>
-            <li class="nav-item px-3 d-flex align-items-center">
-              <a href="{{ url_for('settings', cmp_id=cmp_id, obsc=obsc_key) }}" class="nav-link text-body p-0">
-                <i class="fa fa-cog fixed-plugin-button-nav cursor-pointer"></i>
-              </a>
             </li>
             <li class="nav-item d-flex align-items-center">
               <a href="{{ url_for('logout', auth_id=cur_usr_id) }}" class="nav-link text-body font-weight-bold px-0">
@@ -285,6 +278,46 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="apiGenModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="staticBackdropLabel">Generate API Key</h1>
+          </div>
+          <div class="modal-body">
+            Are you sure you want to create a new API key? An OTP link will be sent to your registered email to retrieve the key.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="api-create-modal-close">Close</button>
+            <button type="button" class="btn btn-primary" id="api-create">
+              <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true" id="api-create-spinner"></span>
+              <span class="api-create-text">Generate</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="apiRefreshModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="staticBackdropLabel">Refresh API Key</h1>
+          </div>
+          <div class="modal-body">
+            Are you sure you want to refresh your API key? This action will invalidate your current key and generate a new one.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="api-refresh-modal-close">Close</button>
+            <button type="button" class="btn btn-primary" id="api-refresh">
+              <span class="spinner-grow spinner-grow-sm d-none" role="status" aria-hidden="true" id="api-refresh-spinner"></span>
+              <span class="api-refresh-text">Refresh</span>
+            </button>
           </div>
         </div>
       </div>
@@ -481,6 +514,12 @@
     const flowScheduleInit = document.getElementById('flow-schedule-init');
     const taskExecSwitch = document.getElementById('taskExecSwitch');
     const deleteFlowButton = document.getElementById('delete-flow');
+    const addAPIBtn = document.getElementById('add-api');
+    const resetAPIBtn = document.getElementById('reset-api');
+    const refreshAPIBtn = document.getElementById('api-refresh'); 
+    const createAPIBtn = document.getElementById('api-create');
+    const apiGenModal = new bootstrap.Modal(document.getElementById('apiGenModal'));
+    const apiRefreshModal = new bootstrap.Modal(document.getElementById('apiRefreshModal'));
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -563,6 +602,98 @@
 
     // LLM Chat event listeners
     chatSend.addEventListener("click", sendMessage);
+
+    createAPIBtn.addEventListener('click', async function() {
+      const createAPISpinner = document.getElementById('api-create-spinner');
+      const createAPIText = document.querySelector('.api-create-text');
+      const apiModalCloseBtn = document.getElementById('api-create-modal-close');
+      createAPISpinner.classList.remove('d-none');
+      createAPISpinner.classList.add('d-inline-block');
+      createAPIText.textContent = 'Creating...';
+      createAPIBtn.disabled = true;
+      apiModalCloseBtn.disabled = true;
+
+      resp = await fetch(`https://${mntrURL}/v1/api/core/user/createapi?sess_id={{ auth_id }}`, {
+          method: 'POST',
+          credentials:"same-origin"
+        });
+
+      if (resp.status === 200) {
+        createAPISpinner.classList.remove('d-inline-block');
+        createAPISpinner.classList.add('d-none');
+        createAPIText.textContent = 'Generate';
+        createAPIBtn.disabled = false;
+        apiModalCloseBtn.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = "API Key Created";
+
+        document.getElementById('notif-modal-text').textContent = "API key has been created successfully. Retrieve via OTP link sent to your registered email.";
+
+        notificationModal.show();
+      } else {
+        createAPISpinner.classList.remove('d-inline-block');
+        createAPISpinner.classList.add('d-none');
+        createAPIText.textContent = 'Generate';
+        createAPIBtn.disabled = false;
+        apiModalCloseBtn.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = "Error Creating API Key";
+
+        document.getElementById('notif-modal-text').textContent = "Failed to create API key. Please try again.";
+
+        notificationModal.show();
+      }
+    });
+
+    refreshAPIBtn.addEventListener('click', async function() {
+      const refreshAPISpinner = document.getElementById('api-refresh-spinner');
+      const refreshAPIText = document.querySelector('.api-refresh-text');
+      const apiRefreshModalCloseBtn = document.getElementById('api-refresh-modal-close');
+      refreshAPISpinner.classList.remove('d-none');
+      refreshAPISpinner.classList.add('d-inline-block');
+      refreshAPIText.textContent = 'Refreshing...';
+      refreshAPIBtn.disabled = true;
+      apiRefreshModalCloseBtn.disabled = true;
+
+      resp = await fetch(`https://${mntrURL}/v1/api/core/user/resetapi?sess_id={{ auth_id }}`, {
+          method: 'POST',
+          credentials:"same-origin"
+        });
+
+      if (resp.status === 200) {
+        refreshAPISpinner.classList.remove('d-inline-block');
+        refreshAPISpinner.classList.add('d-none');
+        refreshAPIText.textContent = 'Refresh';
+        refreshAPIBtn.disabled = false;
+        apiRefreshModalCloseBtn.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = "API Key Reset";
+
+        document.getElementById('notif-modal-text').textContent = "API key has been reset successfully.";
+
+        notificationModal.show();
+      } else {
+        refreshAPISpinner.classList.remove('d-inline-block');
+        refreshAPISpinner.classList.add('d-none');
+        refreshAPIText.textContent = 'Refresh';
+        refreshAPIBtn.disabled = false;
+        apiRefreshModalCloseBtn.disabled = false;
+
+        document.getElementById('notificationModalLabel').textContent = "Error Resetting API Key";
+
+        document.getElementById('notif-modal-text').textContent = "Failed to reset API key. Please try again.";
+
+        notificationModal.show();
+      }
+    });
+
+    addAPIBtn.addEventListener('click', async function() {
+      apiGenModal.show();
+    });
+
+    resetAPIBtn.addEventListener('click', async function() {
+      apiRefreshModal.show();
+    });
 
     flowScheduleInit.addEventListener("click", async function() {
 

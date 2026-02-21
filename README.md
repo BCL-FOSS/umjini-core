@@ -1,6 +1,6 @@
 # umjiniti-core #
 
-Network Management System that leverages open source LLMs to proactively monitor, visualize and troubleshoot on-prem and cloud environments via distributed probes.
+Network Monitoring & Agentic Automation platform that leverages open source, locally hosted LLMs to analyze, visualize and troubleshoot on-prem and cloud environments via distributed probes.
 
 <p align="center">
   <img width="300" height="300" src="https://github.com/BCL-FOSS/umjiniti-core/blob/main/frontend/static/img/bcl/umjinilogo.png?raw=true">

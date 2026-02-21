@@ -630,6 +630,11 @@ async def _receive() -> None:
                             if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
                                 logger.info(f"Task data updated successfully with id: {message['id']}")
 
+                        case 'del':
+                            result = await cl_data_db.del_obj(key=message['id'])
+                            if result is not None:
+                                logger.info(f"Task data deleted successfully with id: {message['id']}")
+
                     if message['job_type'] == 'flow':
                         if await cl_data_db.upload_db_data(id=message['flow_id'], data={'comment': message['comment']}) > 0:
                             logger.info(f"Flow comment updated successfully with id: {message['flow_id']}")

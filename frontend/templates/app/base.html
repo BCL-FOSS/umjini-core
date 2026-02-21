@@ -336,6 +336,8 @@
     const currentUser = "{{ data.get('unm') }}";
     const wsURLMon = "{{ ws_url }}";
     const curUsrID = "{{ cur_usr_id }}"
+    const curUser = "{{ cur_usr }}";
+    const mntrURL = "{{ mntr_url }}";
     // let accessToken = getCookie("access_token");
     // Use JWT in Sec-WebSocket-Protocol
     const prbExec = document.getElementById("prbExecSwitch");
@@ -479,24 +481,22 @@
     let selectedProbe = document.getElementById("mcp-dropdown");
     const chatInput = document.getElementById("chat-input");
     const chatSend = document.getElementById("chat-send");
-    
     const pcapInit = document.getElementById("pcap-init");
     const scanInit = document.getElementById("scan-init");
     const iperfInit = document.getElementById("iperf-init");
     const trcrtInit = document.getElementById("trcrt-init");
-
     const taskToggleInit = document.getElementById('task-toggle-init');
     const taskRescheduleInit = document.getElementById('task-reschedule-init');
     const taskDeleteInit = document.getElementById('task-delete-init');
     const taskSmartBotSwitch = document.getElementById('taskSmartBotSwitch');
     const taskSmartBotPrompt = document.getElementById('taskSmartBotPrompt');
-
     const netvisRunTraceButton = document.getElementById('netvis-trace-run-btn');
     const netvisRunPerfButton = document.getElementById('netvis-perf-run-btn');
     const netvisRunScanButton = document.getElementById('netvis-scan-run-btn');
     const netvisRunPcapButton = document.getElementById('netvis-pcap-run-btn');
-
     const flowScheduleInit = document.getElementById('flow-schedule-init');
+    const taskExecSwitch = document.getElementById('taskExecSwitch');
+    const deleteFlowButton = document.getElementById('delete-flow');
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -742,6 +742,39 @@
         taskData["prms"]["packetlen"] = tracePacketLen;
       }
 
+      if (taskExecSwitch.checked) {
+        taskData["oper"] = "exec";
+
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+
+        this.disabled = false;
+
+        traceType.value = "";
+        traceTarget.value = "";
+        traceDNSServer.value = "";
+        traceOptions.value = "";
+        tracePacketLen.value = "";
+        taskSmartBotSwitch.checked = false;
+        taskSmartBotPrompt.value = "";
+        taskExecSwitch.checked = false;
+        taskDays.value = "";
+        taskMonths.value = "";
+        taskHours.value = "";
+        taskMinutes.value = "";
+        taskDom.value = "";
+
+        document.getElementById('notificationModalLabel').textContent = `Performance Test Task Executed`;
+        document.getElementById('notif-modal-text').innerText = `Performance test task executed immediately. You will receive a notification when the test is complete and the results are available for review.`;
+
+        notificationModal.show();
+
+        return;
+      }
+
       taskData["oper"] = "init_task";
 
       ws.send(JSON.stringify(taskData));
@@ -752,6 +785,20 @@
       
       // Enable the button
       this.disabled = false;
+
+      traceType.value = "";
+      traceTarget.value = "";
+      traceDNSServer.value = "";
+      traceOptions.value = "";
+      tracePacketLen.value = "";
+      taskSmartBotSwitch.checked = false;
+      taskSmartBotPrompt.value = "";
+      taskExecSwitch.checked = false;
+      taskDays.value = "";
+      taskMonths.value = "";
+      taskHours.value = "";
+      taskMinutes.value = "";
+      taskDom.value = "";
 
       document.getElementById('notificationModalLabel').textContent = 'Traceroute Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Network path trace task initiated. You will receive a notification when the trace is complete and the results are available for review.';
@@ -819,6 +866,36 @@
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
       }
 
+      if (taskExecSwitch.checked) {
+        taskData["oper"] = "exec";
+
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+
+        this.disabled = false;
+
+        spdtstClientOptions.value = "";
+        spdtstOptions.value = "";
+        taskSmartBotSwitch.checked = false;
+        taskSmartBotPrompt.value = "";
+        taskExecSwitch.checked = false;
+        taskDays.value = "";
+        taskMonths.value = "";
+        taskHours.value = "";
+        taskMinutes.value = "";
+        taskDom.value = "";
+
+        document.getElementById('notificationModalLabel').textContent = `Performance Test Task Executed`;
+        document.getElementById('notif-modal-text').innerText = `Performance test task executed immediately. You will receive a notification when the test is complete and the results are available for review.`;
+
+        notificationModal.show();
+
+        return;
+      }
+
       if (taskDays.value){
         taskData["days"] = taskDays.value;
       }
@@ -849,6 +926,17 @@
       
       // Enable the button
       this.disabled = false;
+
+      spdtstClientOptions.value = "";
+      spdtstOptions.value = "";
+      taskSmartBotSwitch.checked = false;
+      taskSmartBotPrompt.value = "";
+      taskExecSwitch.checked = false;
+      taskDays.value = "";
+      taskMonths.value = "";
+      taskHours.value = "";
+      taskMinutes.value = "";
+      taskDom.value = "";
 
       document.getElementById('notificationModalLabel').textContent = 'Performance Test Task Initiated';
       document.getElementById('notif-modal-text').innerText = 'Network performance test initiated. You will receive a notification when the test is complete and the results are available for review.';
@@ -921,6 +1009,36 @@
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
       }
 
+      if (taskExecSwitch.checked) {
+        taskData["oper"] = "exec";
+
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+
+        this.disabled = false;
+
+        scanInterface.value = "";
+        scanOptions.value = "";
+        taskSmartBotSwitch.checked = false;
+        taskSmartBotPrompt.value = "";
+        taskExecSwitch.checked = false;
+        taskDays.value = "";
+        taskMonths.value = "";
+        taskHours.value = "";
+        taskMinutes.value = "";
+        taskDom.value = "";
+
+        document.getElementById('notificationModalLabel').textContent = `${scanType} Scan Task Executed`;
+        document.getElementById('notif-modal-text').innerText = `${scanType} scan task executed immediately. You will receive a notification when the scan is complete and the results are available for review.`;
+
+        notificationModal.show();
+
+        return;
+      }
+
       if (taskDays.value){
         taskData["days"] = taskDays.value;
       }
@@ -952,8 +1070,19 @@
       // Enable the button
       this.disabled = false;
 
-      document.getElementById('notificationModalLabel').textContent = 'Scan Task Initiated';
-      document.getElementById('notif-modal-text').innerText = 'Network scan task initiated. You will receive a notification when the scan is complete and the results are available for review.';
+      scanInterface.value = "";
+      scanOptions.value = "";
+      taskSmartBotSwitch.checked = false;
+      taskSmartBotPrompt.value = "";
+      taskExecSwitch.checked = false;
+      taskDays.value = "";
+      taskMonths.value = "";
+      taskHours.value = "";
+      taskMinutes.value = "";
+      taskDom.value = "";
+
+      document.getElementById('notificationModalLabel').textContent = `${scanType} Scan Task Initiated`;
+      document.getElementById('notif-modal-text').innerText = `${scanType} scan task initiated. You will receive a notification when the scan is complete and the results are available for review.`;
 
       notificationModal.show();
       
@@ -1027,6 +1156,37 @@
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
       }
 
+      if (taskExecSwitch.checked) {
+        taskData["oper"] = "exec";
+
+        ws.send(JSON.stringify(taskData));
+
+        spinner.classList.remove('d-inline-block');
+        spinner.classList.add('d-none');
+        buttonText.textContent = "Scan";
+
+        this.disabled = false;
+
+        pcapInterface.value = "";
+        pcapCount.value = "";
+        pcapDuration.value = "";
+        taskSmartBotSwitch.checked = false;
+        taskSmartBotPrompt.value = "";
+        taskExecSwitch.checked = false;
+        taskDays.value = "";
+        taskMonths.value = "";
+        taskHours.value = "";
+        taskMinutes.value = "";
+        taskDom.value = "";
+
+        document.getElementById('notificationModalLabel').textContent = 'Packet Capture Task Executed';
+        document.getElementById('notif-modal-text').innerText = 'Packet capture task executed immediately. You will receive a notification when the capture is complete and the results are available for review.';
+
+        notificationModal.show();
+
+        return;
+      }
+
       if (taskDays.value){
         taskData["days"] = taskDays.value;
       }
@@ -1054,6 +1214,19 @@
       spinner.classList.remove('d-inline-block');
       spinner.classList.add('d-none');
       buttonText.textContent = "Scan";
+
+      pcapInterface.value = "";
+      pcapCount.value = "";
+      pcapDuration.value = "";
+      taskSmartBotSwitch.checked = false;
+      taskSmartBotPrompt.value = "";
+      taskExecSwitch.checked = false;
+      taskDays.value = "";
+      taskMonths.value = "";
+      taskHours.value = "";
+      taskMinutes.value = "";
+      taskDom.value = "";
+      
       
       // Enable the button
       this.disabled = false;
@@ -1142,9 +1315,6 @@
       const minutes = document.getElementById("task-reschedule-minutes");
       const dom = document.getElementById("task-reschedule-dom");
 
-      const smartbotSwitch = document.getElementById("smartbotSwitch");
-      const flowbotSwitch = document.getElementById("flowbotSwitch");
-
       let taskData = {
         "act": "prb_task_init",
         "prb_id": probe_id.dataset.prb_id,
@@ -1185,14 +1355,6 @@
       if (dom.value){
         taskData["dom"] = dom.value;
       }
-
-      if (smartbotSwitch.checked){
-        taskData["smartbot"] = 'y';
-      } 
-
-      if (flowbotSwitch.checked){
-        taskData["flowbot"] = 'y';
-      } 
 
       taskData["oper"] = "resch_task";
 
@@ -1252,6 +1414,61 @@
       document.getElementById('notif-modal-text').innerText = `task ${name.dataset.name} deletion initiated. You will receive a notification when the task has been successfully deleted.`;
 
       notificationModal.show();
+    });
+
+    deleteFlowButton.addEventListener('click', async function() {
+      const id = document.getElementById("flow-delete-id-holder").dataset.id;
+      const probe = document.getElementById("flow-delete-probe-holder").dataset.probe;
+      const comment = document.getElementById("flow-delete-comment-holder").dataset.comment;
+      const spinner = this.querySelector('.spinner-grow');
+      const buttonText = this.querySelector('.flow-delete-button-text');
+      const commentText = document.getElementById("flow-delete-comment-holder");
+      const payload = { id: id, probe: probe };
+
+      // Show the spinner and hide the text
+      spinner.classList.remove('d-none');
+      spinner.classList.add('d-inline-block');
+      buttonText.textContent = "Deleting...";
+      
+      // Disable the button
+      this.disabled = true;
+
+      try {
+        const resp = await fetch(`https://${mntrURL}/v1/api/core/flow/delete?usr=${curUser}`, {method: 'POST', credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+
+        if (resp.ok) {
+          const j = await resp.json()
+
+          let taskData = {
+            "act": "prb_task_init",
+            "prb_id": probe_id.dataset.prb_id,
+            "comment": comment.dataset.comment,
+            "oper": "rm_task",
+            "task_id": id
+
+          };  
+
+          ws.send(JSON.stringify(taskData));
+
+          spinner.classList.remove('d-inline-block');
+          spinner.classList.add('d-none');
+          buttonText.textContent = "Delete";
+          
+          // Enable the button
+          this.disabled = false;
+
+
+          document.getElementById('notificationModalLabel').textContent = `Flow Deletion Initiated`;
+          document.getElementById('notif-modal-text').innerText = `Flow deletion for flow ${id} on probe ${probe} has been initiated. You will receive a notification when the flow has been successfully deleted.`;
+          notificationModal.show();
+        } else {
+          document.getElementById('notificationModalLabel').textContent = 'Flow Deletion Failed';
+          document.getElementById('notif-modal-text').innerText = `Flow deletion for flow ${id} on probe ${probe} failed to initiate. Please try again. If the issue persists, contact support.`;
+          notificationModal.show();
+        }
+      } catch (err) {
+        console.error('Network or server error:', err);
+      }
     });
 
     chatInput.addEventListener("keypress", e => {

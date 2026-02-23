@@ -24,17 +24,6 @@
                 <!-- List -->
                 <div style="position: relative; height: 400px; overflow-y:auto;" id="tool-list-container">
                   <ul class="list-unstyled mb-0" id="tool-list">
-                    <li class="p-2 border-bottom" data-value="netmaps">
-                      <a href="#!" class="d-flex justify-content-between">
-                        <div class="d-flex flex-row">
-                          <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava1-bg.webp"
-                              alt="avatar" class="d-flex align-self-center me-3" width="60">
-                          <div class="pt-1">
-                            <p class="fw-bold mb-0">Network Visualizer</p>
-                          </div>
-                        </div>
-                      </a>
-                    </li>
                     <li class="p-2 border-bottom" data-value="flows">
                       <a href="#!" class="d-flex justify-content-between">
                         <div class="d-flex flex-row">
@@ -76,122 +65,6 @@
             <!-- Right: Probe Tools (multiple windows) -->
             <div class="col-md-6 col-lg-7 col-xl-8">
               <div id="probe-tools-container" style="height: 500px; overflow-y: auto;" class="border p-3 mb-3">
-
-                <div class="card shadow h-100 tool-window" id="tool-netmaps" style="display: none; height:100%; overflow-y:auto;">
-                  <div class="card-header pb-0 p-3" >
-                    <h6 class="mb-0">Network Visualizer</h6>
-                  </div>
-                  <div class="card-body p-3">
-                    <!-- Tabs Navigation -->
-                    <ul class="nav nav-tabs" id="netVisTab" role="tablist">
-                      <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="path-trace-tab" data-bs-toggle="tab" data-bs-target="#path-trace-pane" type="button" role="tab" aria-controls="path-trace-pane" aria-selected="true">
-                          Path Trace
-                        </button>
-                      </li>
-                      <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="perf-test-tab" data-bs-toggle="tab" data-bs-target="#perf-test-pane" type="button" role="tab" aria-controls="perf-test-pane" aria-selected="false">
-                          Performance Test
-                        </button>
-                      </li>
-                      <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="scans-tab" data-bs-toggle="tab" data-bs-target="#scans-pane" type="button" role="tab" aria-controls="scans-pane" aria-selected="false">
-                          Scans
-                        </button>
-                      </li>
-                      <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pcap-tab" data-bs-toggle="tab" data-bs-target="#pcap-pane" type="button" role="tab" aria-controls="pcap-pane" aria-selected="false">
-                          Packet Captures
-                        </button>
-                      </li>
-                    </ul>
-
-                    <!-- Tabs Content -->
-                    <div class="tab-content pt-3" id="netVisTabContent">
-                      <!-- Path Trace Tab -->
-                      <div class="tab-pane fade show active" id="path-trace-pane" role="tabpanel" aria-labelledby="path-trace-tab">
-                        <div class="card shadow h-100">
-                          <div class="card-header pb-0 p-3">
-                            <div class="input-group mb-3">
-                              <select id="trace-type-select" class="form-select" aria-label="Select Trace Type" aria-placeholder="Choose Traceroute Results to View">
-                                {% for trace in trace_results.values() %}
-                                  <option value="{{ trace.id }}">{{ trace.probe_name }} - {{ trace.type }} - {{ trace.timestamp }}</option>
-                                {% endfor %}
-                              </select>
-                              <button class="btn btn-outline-secondary ms-2" id="view-trace-btn">View Trace</button>
-                            </div>
-                            
-                          </div>
-                          <div class="card-body p-3">
-                            <div id="trace-alerts"></div>
-                            <div id="network-trace" style="width: 100%; height: 500px; border: 1px solid #ccc; background: #f0f0f0;"></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Performance Test Tab -->
-                      <div class="tab-pane fade" id="perf-test-pane" role="tabpanel" aria-labelledby="perf-test-tab">
-                        <div class="card shadow h-100">
-                          <div class="card-header pb-0 p-3">
-                            <div class="input-group mb-3">
-                              <select id="perf-type-select" class="form-select" aria-label="Select Performance Test Type" aria-placeholder="Choose Performance Test Results to View">
-                                {% for perf in perf_results.values() %}
-                                  <option value="{{ perf.id }}">{{ perf.probe_name }} - {{ perf.type }} - {{ perf.timestamp }}</option>
-                                {% endfor %}
-                              </select>
-                              <button class="btn btn-outline-secondary ms-2" id="view-perf-btn">View Performance Test</button>
-                            </div>
-                           
-                          </div>
-                          <div class="card-body p-3">
-                            <div id="perf-alerts"></div>
-                            <div id="network-perf" style="width: 100%; height: 500px; border: 1px solid #ccc; background: #f0f0f0;"></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Scans Tab -->
-                      <div class="tab-pane fade" id="scans-pane" role="tabpanel" aria-labelledby="scans-tab">
-                        <div class="card shadow h-100">
-                          <div class="card-header pb-0 p-3">
-                            <div class="input-group mb-3">  
-                              <select id="scan-type-select" class="form-select" aria-label="Select Scan Type" aria-placeholder="Choose Scan Results to View">
-                                {% for scan in scan_results.values() %}
-                                  <option value="{{ scan.id }}">{{ scan.probe_name }} - {{ scan.type }} - {{ scan.timestamp }}</option>
-                                {% endfor %}
-                              </select>
-                              <button class="btn btn-outline-secondary ms-2" id="view-scan-btn">View Scan</button>
-                            </div>
-                          </div>
-                          <div class="card-body p-3">
-                            <div id="scan-alerts"></div>
-                            <div id="network-scan" style="width: 100%; height: 500px; border: 1px solid #ccc; background: #f0f0f0;"></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Packet Captures Tab -->
-                      <div class="tab-pane fade" id="pcap-pane" role="tabpanel" aria-labelledby="pcap-tab">
-                        <div class="card shadow h-100">
-                          <div class="card-header pb-0 p-3">
-                            <div class="input-group mb-3">  
-                              <select id="pcap-type-select" class="form-select" aria-label="Select Packet Capture to View" aria-placeholder="Choose Packet Capture Results to View">
-                                {% for pcap in pcap_results.values() %}
-                                  <option value="{{ pcap.id }}">{{ pcap.probe_name }} - {{ pcap.type }} - {{ pcap.timestamp }}</option>
-                                {% endfor %}
-                              </select>
-                              <button class="btn btn-outline-secondary ms-2" id="view-pcap-btn">View Packet Capture</button>
-                            </div>
-                          </div>
-                          <div class="card-body p-3">
-                            <div id="pcap-alerts"></div>
-                            <div id="network-pcap" style="width: 100%; height: 500px; border: 1px solid #ccc; background: #f0f0f0;"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 <div class="card shadow h-100 tool-window" id="tool-flows" style="display: none; height:100%; overflow-y:auto;">
                   <div class="card-header pb-0 p-3">
@@ -877,10 +750,6 @@
     const taskToggleButtons = document.querySelectorAll(".task-toggle-btn");
     const taskRescheduleButtons = document.querySelectorAll(".task-reschedule-btn");
     const taskDeleteButtons = document.querySelectorAll(".task-delete-btn");
-    const viewTraceButton = document.getElementById('view-trace-button');
-    const viewPerfButton = document.getElementById('view-perf-button');
-    const viewScanButton = document.getElementById('view-scan-button');
-    const viewPcapButton = document.getElementById('view-pcap-button');
     const flowDeleteButtons = document.querySelectorAll('.flow-delete-btn');
     const flowScheduleButtons = document.querySelectorAll('.flow-schedule-btn');
     const deleteFlowText = document.getElementById('delete-flow-text');

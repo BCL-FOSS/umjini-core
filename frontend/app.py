@@ -451,6 +451,12 @@ async def alerts(cmp_id, obsc, prb_id, alert_type):
 
     if prb_id != "default" and alert_type != "default":
         alerts = await cl_data_db.get_all_data(match=f"alert:{prb_id}:{alert_type}:*")
+    elif prb_id != "default" and alert_type == "default":
+        alerts = await cl_data_db.get_all_data(match=f"alert:{prb_id}:*")
+    elif prb_id == "default" and alert_type != "default":
+        alerts = await cl_data_db.get_all_data(match=f"alert:*:{alert_type}:*")
+    else:         
+        alerts = await cl_data_db.get_all_data(match=f"alert:*")
 
     return await render_template("app/alerts.html", obsc_key=session.get('url_key') ,
                                   cmp_id=cmp_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, cur_usr_id=cur_usr_id, alerts=alerts)

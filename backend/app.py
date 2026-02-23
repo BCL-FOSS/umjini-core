@@ -341,6 +341,7 @@ async def smartbot_processing(payload: dict, message: dict, headers: dict):
                                 'name': message['name'],
                                 'prb_id': message['prb_id'],
                                 'msg': smartbot_alert,
+                                'status': 'active',
                                 'timestamp': now.isoformat()}
                     
             alert_id = f"alert:{message['prb_id']}:{probe_outage_data['alert_type']}:{now.isoformat()}"
@@ -735,6 +736,12 @@ async def _receive() -> None:
                         logger.info(f"Task result data uploaded successfully with id: {task_result_id}")
                         await broker.publish(message=json.dumps(message))
 
+                case 'prb_netmap_rslt':
+                    message['id'] = f"netmap:result:{message['prb_id']}:{message['timestamp']}"
+                    if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
+                        logger.info(f"Network map result data uploaded successfully with id: {message['id']}")
+                    await send_processed_data_to_probe(data_to_send=message)
+
                 case _:
                     pass
         else:
@@ -819,6 +826,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                             'name': probe_data_dict.get('name'),
                                             'prb_id': sess_id,
                                             'msg': f'Probe {probe_data_dict.get("name")} (ID: {sess_id}) is offline or a network outage has occurred at the site or resource the probe is located at.',
+                                            'status': 'active',
                                             'timestamp': now.isoformat()}
                     
                     alert_id = f"alert:{sess_id}:{probe_outage_data['alert_type']}:{now.isoformat()}"

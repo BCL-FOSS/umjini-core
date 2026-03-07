@@ -476,6 +476,18 @@ async def chats(cmp_id, obsc, usr, prb_id):
     return await render_template("app/chats.html", obsc_key=session.get('url_key') ,
                                   cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, usr=usr, chats=chats)
 
+@app.route('/probedashboard', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default'}, methods=['GET', 'POST'])
+@app.route("/probedashboard/<string:cmp_id>/<string:obsc>/<string:prb_id>", methods=['GET', 'POST'])
+@user_login_required
+async def probedashboard(cmp_id, obsc, prb_id):
+    cur_usr_id = current_client.auth_id
+    session["csrf_ready"] = True
+    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
+
+
+    return await render_template("app/probedashboard.html", obsc_key=session.get('url_key') ,
+                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, prb_id=prb_id)
+
 @app.errorhandler(CSRFError)
 async def handle_csrf_error(e):
     await ip_blocker()

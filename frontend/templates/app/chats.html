@@ -42,7 +42,8 @@
                       data-agent="{{ message.agent_msg }}">
                         View Details
                       </button>
-                      <button type="button" class="btn btn-outline-danger btn-sm mb-0 chat-convert-btn">
+                      <button type="button" class="btn btn-outline-danger btn-sm mb-0 chat-convert-btn"
+                      data-chatId="{{ message.id }}">
                         Convert to Task
                       </button>
                     </div>
@@ -131,9 +132,9 @@
   chatConversionButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation(); // prevent row click selection (if undesired)
-      const msg = btn.dataset.msg || '';
       // Fill modal fields
-      document.getElementById('chat-convert-msg').textContent = `Are you sure you want to convert the chat to a task: ${msg}`;
+      document.getElementById('chat-convert-msg').textContent = `Are you sure you want to convert the chat to a task? This will create a new task with the user inquiry as the prompt.`;
+      document.getElementById('chat-convert-msg').dataset.chatId = btn.dataset.chatId;
       chatConvertModal.show();
     });
   });

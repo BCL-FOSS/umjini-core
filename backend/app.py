@@ -400,11 +400,11 @@ async def _receive() -> None:
                     if await cl_data_db.get_all_data(match=f'*uid:{message["usr"]}*', cnfrm=True) is True:
                         agent_msg_data = {}
                         
-                        selected_probe = await cl_data_db.get_all_data(match=f"*{message['prb_id']}*")
+                        #selected_probe = await cl_data_db.get_all_data(match=f"*{message['prb_id']}*")
 
-                        selected_probe_dict = next(iter(selected_probe.values()))
+                        #selected_probe_dict = next(iter(selected_probe.values()))
                         
-                        api = selected_probe_dict.get('prb_api_key')
+                        api = message['api_key'] #selected_probe_dict.get('prb_api_key')
 
                         processing_msg_data = {
                             "from": "agent",
@@ -553,7 +553,7 @@ async def _receive() -> None:
                                 agent_msg_data['url'] = message["url"]
                                 agent_msg_data['usr_id'] = message['usr_id']
                                 agent_msg_data['prb_id'] = message['prb_id']
-                                agent_msg_data['final_output'] = 'y'
+                                agent_msg_data['final_output'] = True
                         
                                 await broker.publish(message=json.dumps(agent_msg_data))
 
@@ -883,7 +883,7 @@ async def heartbeat(probe_id):
 
         if await ws_rate_limiter.check_rate_limit(client_id=probe_id) is False:
             await ip_blocker(conn_obj=websocket)
-            abort(401)
+            await websocket.close()
 
         monitor_task = None
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:
@@ -911,8 +911,6 @@ async def heartbeat(probe_id):
                              'last_online': now.isoformat()}
 
             await cl_data_db.upload_db_data(id=current_probe_data_dict.get('db_id'), data=online_status)
-
-
 
         if probe_id and (probe_id in connected_probes):
             asyncio.ensure_future(_receive())
@@ -944,7 +942,6 @@ async def heartbeat(probe_id):
                 logger.error(f"Error cancelling monitor task: {e}")
                 pass
     
-        
 @app.websocket("/v1/api/core/channels/users/ws")
 @rate_exempt
 async def ws():
@@ -1004,16 +1001,11 @@ async def ws():
                     "sess_id": id,
                     "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
                 }
-                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}")
-                        
+                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}") 
                 asyncio.ensure_future(_receive())
-
-                #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
             if id and (id in auth_ping_counter):
                 asyncio.ensure_future(_receive())
-
-                #monitor_task = asyncio.create_task(session_watchdog(sess_id=id))
 
             try:
                 async for message in broker.subscribe():
@@ -1449,7 +1441,7 @@ async def alerts():
 
     if not jwt_token or not sess_id:
         await ip_blocker(conn_obj=request)
-        return jsonify(error="Missing required request data"), 400
+        abort(401)
     
     await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
 
@@ -1467,7 +1459,38 @@ async def alerts():
                 return jsonify({'status':'alert resolved'}), 200
             else:
                 return jsonify({'status':'alert resolution failed'}), 400
- 
+
+@app.route('/v1/api/core/user/chats', defaults={'prb_id': 'default','usr': 'default'}, methods=['GET', 'POST'])            
+@app.route('/v1/api/core/user/chats/<string:prb_id>/<string:usr>', methods=['GET', 'POST'])
+async def user_chats(prb_id, usr):
+    jwt_token = request.cookies.get("access_token")
+    sess_id = request.args.get('sess_id')   
+
+    if not jwt_token or not sess_id:
+        await ip_blocker(conn_obj=request)
+        abort(401)
+    
+    await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
+
+    match request.args.get('action'):
+        case 'cnvrt':
+            selected_chat = await cl_data_db.get_all_data(match=f"*{request.args.get('chat_id')}*")
+            selected_chat_dict = next(iter(selected_chat.values()))
+            
+            if selected_chat is not None:
+                return jsonify(json.loads(selected_chat_dict['tool_calls'])), 200
+            else:                 
+                return jsonify({'status':'chat retrieval failed'}), 400
+        case 'all':
+            if prb_id == 'default' or usr == 'default':
+                return jsonify({'status':'request failed'}), 400
+            
+            all_chats = await cl_data_db.get_all_data(match=f"*chat:{prb_id}:{usr}*")
+            if all_chats is not None:
+                return jsonify(all_chats), 200
+            else:
+                return jsonify({'status':'chat retrieval failed'}), 400
+
 @app.errorhandler(Unauthorized)
 async def unauthorized():
     await ip_blocker(conn_obj=request)

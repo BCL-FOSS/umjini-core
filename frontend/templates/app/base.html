@@ -164,7 +164,7 @@
             <div class="icon icon-shape icon-sm shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
               <img src="{{ url_for('static', filename='img/bcl/sidenav/ai.svg') }}" width="12px" height="12px" alt="umjini smartbot icon"/>
             </div>
-            <span class="text-white nav-link-text ms-1">Smartbot</span>
+            <span class="text-white nav-link-text ms-1">Probes</span>
           </a>
         </li>
         <li class="nav-item">
@@ -415,7 +415,7 @@
 
             if (data.msg && data.from) {
               const chatWin = document.getElementById(`chat-${data.url}`);
-              if(data.final_output){
+              if(data.final_output === true){
                 if (chatWin) appendMessage(chatWin, data.from, data.msg);
                 const spinner = document.getElementById('smartbot-spinner');
                 const buttonText = document.getElementById('smartbot-send-txt');
@@ -528,6 +528,7 @@
     const createAPIBtn = document.getElementById('api-create');
     const apiGenModal = new bootstrap.Modal(document.getElementById('apiGenModal'));
     const apiRefreshModal = new bootstrap.Modal(document.getElementById('apiRefreshModal'));
+    const chatConvertBtn = document.getElementById('chat-convert-init');
 
     function appendMessage(chatWin, from, text) {
       chatWin.innerHTML+= `<p><strong>${from}</strong></p>`;
@@ -598,6 +599,7 @@
         url: selectedProbe.value,
         usr: currentUser,
         prb_id: selectedProbe.dataset.pid,
+        api_key: selectedProbe.dataset.api,
         from: "user",
         msg: msg,
         usr_id: curUsrID
@@ -1631,6 +1633,39 @@
       }
     });
 
+    chatConvertBtn.addEventListener("click", async function() {
+      let selectedChat = document.getElementById("chat-convert-msg").dataset.chatId;
+
+      const resp = await fetch(`https://${mntrURL}/v1/api/core/user/chats?sess_id=${curUsrID}&chat_id=${selectedChat}&action=cnvrt`, {method: 'POST', credentials: "same-origin", headers: {"Content-Type": "application/json"}});
+
+      if (resp.ok) {
+        const chatToolCalls = await resp.json();
+
+        chatToolCalls.forEach(call => {
+          let toolCallData = {
+            "act": "prb_task_init",
+            "prb_id": selectedProbe.dataset.pid,
+            "user_id": curUsrID,
+            "auto_type": "task",
+            "tool_name": call.tool_name,
+            "input": call.input,
+            "output": call.output
+          };
+
+          ws.send(JSON.stringify(toolCallData));
+        });
+
+        document.getElementById('notificationModalLabel').textContent = 'Chat Conversion Initiated';
+        document.getElementById('notif-modal-text').innerText = `Chat conversion for chat ${selectedChat} has been initiated. You will receive a notification when the flow has been successfully created and executed.`;
+        notificationModal.show();
+      } else {
+        document.getElementById('notificationModalLabel').textContent = 'Chat Conversion Failed';
+        document.getElementById('notif-modal-text').innerText = `Chat conversion for chat ${selectedChat} failed to initiate. Please try again. If the issue persists, contact support.`;
+        notificationModal.show();
+      }
+      
+    });
+
     chatInput.addEventListener("keypress", e => {
       if (e.key === "Enter") sendMessage();
     });
@@ -1642,11 +1677,13 @@
         showChat(selectedProbe.value);
         document.getElementById("mcp-dropdown").value = selectedProbe.value;
         selectedProbe.dataset.pid = li.dataset.pid;
+        selectedProbe.dataset.api = li.dataset.api;
       });
     });
     document.getElementById("mcp-dropdown").addEventListener("change", e => {
       selectedProbe.value = e.target.value;
       selectedProbe.dataset.pid = e.target.selectedOptions[0].dataset.pid;
+      selectedProbe.dataset.api = e.target.selectedOptions[0].dataset.api;
       showChat(selectedProbe.value);
     });
     // close all modals but the one you want to open

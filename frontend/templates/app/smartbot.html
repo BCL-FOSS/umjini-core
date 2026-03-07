@@ -40,17 +40,14 @@
                               
                             </div>
                             <div class="input-group mb-3">
-                              <a href="{{ url_for('dashboard', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
-                                View Dashboard
+                              <a href="{{ url_for('probedashboard', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                Dashboard
                               </a>
-                              <a href="{{ url_for('probe', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
-                                Admin Panel
-                              </a>
-                              <a href="{{ url_for('floweditor', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
-                                New WorkFlow
+                              <a href="{{ url_for('probe', cmp_id=cmp_id, obsc=obsc_key, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                Manage
                               </a>
                               <a href="{{ url_for('chats', cmp_id=cmp_id, obsc=obsc_key, usr=cur_usr, prb_id=opt.prb_id) }}" target="_blank" class="btn btn-sm btn-outline-info ms-2">
-                                Chat History
+                                Chat Log
                               </a>
                               <button class="btn btn-sm btn-outline-danger ms-2 probe-delete-btn"
                                   data-name="{{ opt.name|e }}"
@@ -58,7 +55,7 @@
                                   data-site="{{ opt.site|e }}"
                                   data-id="{{ opt.prb_id|e }}"
                                   data-api="{{ opt.prb_api_key|e }}">
-                                Delete Probe
+                                Delete
                               </button>
                             </div>
                           </div>

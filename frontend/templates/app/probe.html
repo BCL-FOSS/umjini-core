@@ -24,13 +24,24 @@
                 <!-- List -->
                 <div style="position: relative; height: 400px; overflow-y:auto;" id="tool-list-container">
                   <ul class="list-unstyled mb-0" id="tool-list">
+                    <li class="p-2 border-bottom">
+                      <a href="{{ url_for('floweditor', cmp_id=cmp_id, obsc=obsc_key, prb_id=probe_id) }}" target="_blank" class="d-flex justify-content-between">
+                        <div class="d-flex flex-row">
+                          <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava1-bg.webp"
+                              alt="avatar" class="d-flex align-self-center me-3" width="60">
+                          <div class="pt-1">
+                            <p class="fw-bold mb-0">New Workflow</p>
+                          </div>
+                        </div>
+                      </a>
+                    </li>
                     <li class="p-2 border-bottom" data-value="flows">
                       <a href="#!" class="d-flex justify-content-between">
                         <div class="d-flex flex-row">
                           <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava1-bg.webp"
                               alt="avatar" class="d-flex align-self-center me-3" width="60">
                           <div class="pt-1">
-                            <p class="fw-bold mb-0">Workflows</p>
+                            <p class="fw-bold mb-0">Manage Workflows</p>
                           </div>
                         </div>
                       </a>

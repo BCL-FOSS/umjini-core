@@ -3,6 +3,11 @@
  * Add this script section after the existing scripts in probes.html
  */
 
+const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {
+  keyboard: true,
+  backdrop: 'static'
+});
+
 // Network visualization instances for each tab
 const networkVisualizers = {
   trace: null,

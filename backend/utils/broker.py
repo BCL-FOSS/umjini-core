@@ -1,6 +1,5 @@
 import asyncio
 from typing import AsyncGenerator
-import json
 
 class Broker:
     def __init__(self) -> None:

@@ -258,7 +258,7 @@
                 </script>,
                 made with <i class="fa fa-heart"></i> by
                 <a href="https://baughcl.tech" class="text-white" target="_blank">Baugh Consulting & Lab L.L.C.</a>
-                for more practical network management.
+                for more accessible AI automation.
               </div>
             </div>
             <div class="col-lg-6">
@@ -1634,35 +1634,24 @@
     });
 
     chatConvertBtn.addEventListener("click", async function() {
-      let selectedChat = document.getElementById("chat-convert-msg").dataset.chatId;
+      let selectedChatTools = document.getElementById("chat-convert-msg").dataset.tool_calls;
 
-      const resp = await fetch(`https://${mntrURL}/v1/api/core/user/chats?sess_id=${curUsrID}&chat_id=${selectedChat}&action=cnvrt`, {method: 'POST', credentials: "same-origin", headers: {"Content-Type": "application/json"}});
+      let taskData = {
+          "act": "prb_task_init",
+          "prb_id": document.getElementById("chat-convert-msg").dataset.pid,
+          "comment": `Chat conversion for chat ${selectedChat}`,
+          "oper": "init_task",
+          "auto_type": "chat",  
+          "llm_data": {"prompt": document.getElementById("chat-convert-msg").dataset.usr_msg},
+          "user_id": curUsrID,
+          "task_id": document.getElementById("chat-convert-msg").dataset.chatId
+        };
 
-      if (resp.ok) {
-        const chatToolCalls = await resp.json();
+      ws.send(JSON.stringify(taskData));
 
-        chatToolCalls.forEach(call => {
-          let toolCallData = {
-            "act": "prb_task_init",
-            "prb_id": selectedProbe.dataset.pid,
-            "user_id": curUsrID,
-            "auto_type": "task",
-            "tool_name": call.tool_name,
-            "input": call.input,
-            "output": call.output
-          };
-
-          ws.send(JSON.stringify(toolCallData));
-        });
-
-        document.getElementById('notificationModalLabel').textContent = 'Chat Conversion Initiated';
-        document.getElementById('notif-modal-text').innerText = `Chat conversion for chat ${selectedChat} has been initiated. You will receive a notification when the flow has been successfully created and executed.`;
-        notificationModal.show();
-      } else {
-        document.getElementById('notificationModalLabel').textContent = 'Chat Conversion Failed';
-        document.getElementById('notif-modal-text').innerText = `Chat conversion for chat ${selectedChat} failed to initiate. Please try again. If the issue persists, contact support.`;
-        notificationModal.show();
-      }
+      document.getElementById('notificationModalLabel').textContent = 'Chat Conversion Initiated';
+      document.getElementById('notif-modal-text').innerText = `Chat conversion for chat ${selectedChat} has been initiated. You will receive a notification when the flow has been successfully created and executed.`;
+      notificationModal.show();
       
     });
 
@@ -1680,6 +1669,7 @@
         selectedProbe.dataset.api = li.dataset.api;
       });
     });
+    
     document.getElementById("mcp-dropdown").addEventListener("change", e => {
       selectedProbe.value = e.target.value;
       selectedProbe.dataset.pid = e.target.selectedOptions[0].dataset.pid;
@@ -1711,8 +1701,6 @@
   </script>
   <!-- Github buttons -->
   <script async defer src="https://buttons.github.io/buttons.js"></script>
-  <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
-  <!--<script src="../assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>-->
   <script src="{{ url_for('static', filename='js/soft-ui-dashboard.min.js') }}" ></script>
 </body>
 

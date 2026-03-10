@@ -72,7 +72,8 @@ ANALYSIS_INSTRUCTIONS = (
 
 def load_network_diagnostic_prompt() -> str:
     try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))  # backend/
+        #base_dir = os.path.dirname(os.path.abspath(__file__))  # backend/
+        base_dir = os.getcwd()
         prompt_path = os.path.join(base_dir, "ai", "smartbot", "skills", "network-diagnostic-system-prompt.md")
         logger.info(f"Loading network diagnostic system prompt from: {prompt_path}")
         with open(prompt_path, "r", encoding="utf-8") as f:
@@ -881,16 +882,21 @@ async def heartbeat(probe_id):
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
-        if await ws_rate_limiter.check_rate_limit(client_id=probe_id) is False:
-            await ip_blocker(conn_obj=websocket)
-            await websocket.close()
-
-        monitor_task = None
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
+        if await ws_rate_limiter.check_rate_limit(client_id=probe_id) is False:
+            await ip_blocker(conn_obj=websocket)
+            await websocket.close()
+
+        usr = websocket.args.get('usr') if websocket.args.get('usr') is not None else None
+
+        monitor_task = None
         if probe_id and (probe_id not in connected_probes):
+            if usr is not None:
+                await websocket.close()
+                
             now = datetime.now(tz=timezone.utc)
             connected_probes[probe_id] = {'conn_start': now,
                                         'id': probe_id,

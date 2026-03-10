@@ -79,7 +79,7 @@
 
                 <div class="card shadow h-100 tool-window" id="tool-flows" style="display: none; height:100%; overflow-y:auto;">
                   <div class="card-header pb-0 p-3">
-                    <h6 class="mb-0">FlowBot Automation Workflows</h6>
+                    <h6 class="mb-0">Automation Workflows</h6>
                   </div>
                   <div class="card-body p-3">
                     <div class="table-responsive">
@@ -325,9 +325,14 @@
                           <form method="POST">
                             <div class="form-floating mb-3">
                               <div class="row">
-                                <div class="col-6">
-                                  <label class="form-label">Available Interfaces (Local Only)</label>
-                                  <select id="scan-ifaces-select" class="form-select"></select>
+                                <div class ="col-6">
+                                  <label class="form-label">Select Interface</label>
+                                  <select class="form-select" id="scan-ifaces-select" aria-label="Select Interface">
+                                    <option value="auto">Auto-Select (Recommended)</option>
+                                    {% for iface in ifaces %}
+                                      <option value="{{ iface }}">{{ iface }}</option>
+                                    {% endfor %}
+                                  </select>
                                 </div>
                                 <div class="col-6">
                                   <label class="form-label">Select Scan Type</label>
@@ -343,47 +348,62 @@
                                 </div>
                               </div>
                             </div>
+                             <div class="form-floating mb-3">
+                              <div class="row mb-3">
+                                <div class="col-6 mb-3">
+                                  <label class="form-label">Target</label>
+                                  <input type="text" class="form-control" id="scan-target">
+                                  <p class="form-text">Enter the target IP address or subnet for the scan</p>
+                                </div>
+                                <div class="col-6 mb-3">
+                                  <label class="form-label">Ports to scan</label>
+                                  <input type="text" class="form-control" placeholder="ports" id="scan-ports">
+                                  <p class="form-text">For Port Scan only. Enter comma-separated ports to scan</p>
+                                </div>
+                              </div>
+                              
+                            </div>
                             <div class="form-floating mb-3">
-                              <div class="row">
-                                <div class="col-6">
+                              <div class="row mb-3">
+                                <div class="col-6 mb-3">
                                   <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" id="scan-fplimit-switch">
                                     <label class="form-check-label" for="scan-fplimit-switch">Limit Fingerprint Scan</label>
                                   </div>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-6 mb-3">
                                   <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" id="scan-devid-noise-switch">
                                     <label class="form-check-label" for="scan-devid-noise-switch">Reduce Device Identification Scan Noise</label>
                                   </div>
                                 </div>
                               </div>
-                              <div class="row">
-                                <div class="col-4">
+                            </div>
+                            <div class="form-floating mb-3">
+                              <div class="row mb-3">
+                                <div class="col-6 mb-3">
                                   <label class="form-label">SNMP Scripts</label>
                                   <input type="text" class="form-control" placeholder="scripts" id="scan-snmp-scripts">
                                   <p class="form-text">For SNMP Scan only. Enter comma-separated nmap SNMP scripts to run</p>
                                 </div>
-                                <div class="col-4">
+                                <div class="col-6 mb-3">
                                   <label class="form-label">SNMP Community String</label>
                                   <input type="text" class="form-control" placeholder="community" id="scan-snmp-community">
                                   <p class="form-text">For SNMP Scan only. Enter the SNMP community string</p>
                                 </div>
-                                <div class="col-4">
-                                  <label class="form-label">Ports to scan</label>
-                                  <input type="text" class="form-control" placeholder="ports" id="scan-ports">
-                                  <p class="form-text">For Port Scan only. Enter comma-separated ports to scan</p>
-                                </div>
                               </div>
                             </div>
                             <div class="form-floating mb-3">
-                              <label class="form-label">Target Subnet/IP</label>
-                              <input type="text" class="form-control" id="scan-target">
-                            </div>
-                            <div class="form-floating mb-3">
-                              <label class="form-label">Command Options</label>
-                              <input type="text" class="form-control" id="scan-options" >
-                              <div class="form-text" id="scan-addon4">For Custom scan only. Enter command arguments</div>
+                              <div class="row mb-3">
+                                <div class="col-6 mb-3">
+                                  <label class="form-label">Command Options</label>
+                                  <input type="text" class="form-control" id="scan-options" >
+                                  <div class="form-text" id="scan-addon4">For Custom scan only. Enter command arguments</div>
+                                </div>
+                                <div class="col-6 mb-3">  
+                                 
+                                </div>
+                              </div>
                             </div>
                             <div class="d-grid">
                               <button type="button" class="btn btn-dark mb-0" id="scan-init" data-pid="{{ probe_id|e }}">
@@ -400,10 +420,6 @@
                             <div class="form-floating mb-3">
                               <div class="row mb-3">
                                 <div class="col-6">
-                                  <label class="form-label">Available Interfaces (Local Only)</label>
-                                  <select class="form-select" id="pcap-ifaces-select" aria-label="Available Interfaces (Local Only)"></select>
-                                </div>
-                                <div class="col-6">
                                   <label class="form-label">Capture Mode</label>
                                   <select class="form-select" id="pcap-dropdown" aria-label="Capture Mode">
                                     <option value="pcap_lcl">Local Capture</option>
@@ -411,17 +427,36 @@
                                     <option value="pcap_win">Remote Windows Capture</option>
                                   </select>
                                 </div>
+                                <div class="col-6">
+                                  <label class="form-label">Select Interface (Local PCAP only)</label>
+                                  <select class="form-select" id="pcap-ifaces-select" aria-label="Select Interface">
+                                    <option value="auto">Auto-Select (Recommended)</option>
+                                    {% for iface in ifaces %}
+                                      <option value="{{ iface }}">{{ iface }}</option>
+                                    {% endfor %}
+                                  </select>
+                                </div>
                               </div>
+                            </div>
+                            <div class="form-floating mb-3">
                               <div class="row mb-3">
-                                <div class="col-4">
+                                <div class="col-6">
                                   <label class="form-label">Remote Host</label>
                                   <input type="text" class="form-control" id="pcap-remote-host-input" placeholder="IP of remote host for capture">
                                 </div>
-                                <div class="col-4">
+                                <div class="col-6">
+                                  <label class="form-label">Remote Interface</label>
+                                  <input type="text" class="form-control" id="pcap-remote-iface-input" placeholder="Interface of remote host for capture">
+                                </div>
+                              </div>
+                            </div>
+                            <div class="form-floating mb-3">
+                              <div class="row mb-3">
+                                <div class="col-6">
                                   <label class="form-label">Remote User</label>
                                   <input type="text" class="form-control" id="pcap-remote-user-input" placeholder="Username for remote host">
                                 </div>
-                                <div class="col-4">
+                                <div class="col-6">
                                   <label class="form-label">Remote Password</label>
                                   <input type="password" class="form-control" id="pcap-remote-pass-input" placeholder="Password for remote host">
                                 </div>

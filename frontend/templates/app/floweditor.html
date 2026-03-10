@@ -38,16 +38,20 @@
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_full"><i class="fas fa-network-wired"></i>Full</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_snmp"><i class="fas fa-server"></i>SNMP</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_port"><i class="fas fa-portal-enter"></i>Port</div></li>
+
                 <li><h6 class="dropdown-header">Performance Tests</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="test_srvr"><i class="fas fa-server"></i>Server</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="test_clnt"><i class="fas fa-wifi"></i>Client</div></li>
+
                 <li><h6 class="dropdown-header">Path Trace</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="trcrt"><i class="fas fa-route"></i>Traceroute</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="trcrt_dns"><i class="fas fa-route"></i>DNS Traceroute</div></li>
+
                 <li><h6 class="dropdown-header">Packet Capture</h6></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_lcl"><i class="fas fa-capture"></i>Local Capture</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_tux"><i class="fas fa-capture"></i>Remote Linux Capture</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_win"><i class="fas fa-capture"></i>Remote Windows Capture</div></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_lcl"><i class="fas fa-capture"></i>Local</div></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_tux"><i class="fas fa-capture"></i>Remote Linux</div></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_win"><i class="fas fa-capture"></i>Remote Windows </div></li>
+
                 <li><h6 class="dropdown-header">Alerts</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="slack"><i class="fab fa-slack"></i>Slack</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="jsm"><i class="fab fa-jira"></i>Jira</div></li>
@@ -58,21 +62,11 @@
           <li>
             <div class="dropdown">
               <button class="btn btn-secondary dropdown-toggle" type="button" id="probeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                Agents 
-              </button>
-              <ul class="dropdown-menu" aria-labelledby="probeDropdown">
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="smartbot"><i class="fas fa-robot"></i>Smartbot</div></li>
-              </ul>
-            </div>
-          </li>
-          <li>
-            <div class="dropdown">
-              <button class="btn btn-secondary dropdown-toggle" type="button" id="probeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 Call Remote Probe: 
               </button>
               <ul class="dropdown-menu" aria-labelledby="probeDropdown">
                 {% for probe in all_probes.values() %}
-                  <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="{{ probe.prb_id }}" value="{{ probe.prb_id }}"><i class="fas fa-mouse"></i>Site: {{ probe.site }} | Name: {{ probe.name }}</div></li>
+                  <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="{{ probe.prb_id }}" value="{{ probe.prb_id }}" data-api="{{ probe.prb_api_key }}"><i class="fas fa-mouse"></i>Site: {{ probe.site }} | Name: {{ probe.name }}</div></li>
                 {% endfor %}
               </ul>
             </div>
@@ -107,12 +101,12 @@
     let currentProbeNodes = {};
     let currentSelectedProbe = null;
 
-    let agentCounter = 0;
-    let currentAgentNodes = {};
-    let currentSelectedAgent = null;
+    let alertCounter = 0;
+    let currentAlertNodes = {};
+    let currentSelectedAlert = null;
 
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
-    var id = document.getElementById("drawflow");
+    const id = document.getElementById("drawflow");
     const editor = new Drawflow(id);
     editor.reroute = true;
     editor.start();
@@ -126,20 +120,40 @@
       if (resp.ok) {
 
         editor.clearModuleSelected();
-        editor.import(j.flow);
+        editor.import(JSON.parse(j.flow));
 
         document.getElementById('flowDropdown').disabled = true;
         document.getElementById('flowDropdown').classList.add('d-none');
-        document.getElementById('flow-save-name').value = j.name;
+        document.getElementById('flow-save-name').textContent = j.name;
 
         document.getElementById('notificationModalLabel').textContent = "Flow Loaded Successfully";
         document.getElementById('notif-modal-text').textContent = `The flow: "${j.name}" has been loaded successfully.`;
 
         notificationModal.show();
       }
-    }
-    //editor.import(dataToImport);
+    } else {
+      const dataToImport =  {"drawflow":{"Home":{"data":{
+            "1":{"id":1,"name":"smartbot","data":{type: 'agent', name: 'smartbot'},"class":"smartbot","html":`
+            <div>
+              <div class="title-box"><i class="fas fa-robot"></i>smartbot</div>
+              <div class="box">
+                <div class="form-floating mb-3">
+                  <label class="form-label">Bot Name</label>
+                  <input type="text" class="form-control" placeholder="Enter a name for this bot..." df-bot-name>
+                </div>
+                <div class="form-floating mb-3">
+                  <label class="form-label">Bot Prompt</label>
+                  <input type="text" class="form-control" placeholder="Enter a prompt for this bot..." df-bot-prompt>
+                </div>
+              </div>
+            </div>
+              `, "typenode": false, "inputs":{},"outputs":{},"pos_x":50,"pos_y":50}
+          ,
+          }}}};
 
+      editor.import(dataToImport);
+    }
+    
     // Events!
     editor.on('nodeCreated', function(id) {
       console.log("Node created " + id);
@@ -147,11 +161,12 @@
       if (currentSelectedProbe.data.type === 'probe') {
         nodeProbeCounter++;
         currentProbeNodes[id] = currentSelectedProbe;
-      } else if (currentSelectedProbe.data.type === 'agent') {
-        agentCounter++;
-        currentAgentNodes[id] = currentSelectedProbe;
+      } else if (currentSelectedProbe.data.type === 'alert') {
+        alertCounter++;
+        currentAlertNodes[id] = currentSelectedProbe;
+        currentSelectedAlert = currentSelectedProbe;
       } else {
-        currentSelectedAgent = editor.getNodeFromId(id);
+        console.log("Node created" + id);
       }
     })
 
@@ -160,11 +175,13 @@
       if (currentProbeNodes.hasOwnProperty(id)) {
         delete currentProbeNodes[id];
         nodeProbeCounter--;
-      } else if (currentAgentNodes.hasOwnProperty(id)) {
-        delete currentAgentNodes[id];
-        agentCounter--;
-      } else if (currentSelectedAgent && currentSelectedAgent.id === id) {
-        currentSelectedAgent = null;
+        currentSelectedProbe = null;
+      } else if (currentAlertNodes.hasOwnProperty(id)) {
+        delete currentAlertNodes[id];
+        alertCounter--;
+        currentSelectedAlert = null;
+      } else {
+        console.log("Node removed" + id);
       }
     })
 
@@ -218,68 +235,57 @@
 
     // Save flow
     document.getElementById('save-flow').addEventListener('click', async ()=>{
-      if (flowID === "default") {
-        document.getElementById('notificationModalLabel').textContent = "No Probe Selected";
+      const savename = document.getElementById('flow-save-name').value;
+      let resp = null;
 
-        document.getElementById('notif-modal-text').textContent = `Please select a main probe for this flow before saving. Select a probe from the "Assign Flow to Probe" dropdown menu.`;
+      if (savename !== null && savename !== "") {
+        const data = editor.export();
+        const flow = JSON.stringify(data, null,4);
 
-        notificationModal.show();
-        return false;
-
-      } else {
-        let savename = document.getElementById('flow-save-name').value;
-        let resp = null;
-
-        if (savename !== null && savename !== "") {
-          const data = editor.export();
-          const flow = JSON.stringify(data, null,4);
-
-          if (flowID !== "default") {
+        if (flowID !== "default") {
             const payload = {flow: flow, id: flowID, name: savename}
             resp = await fetch(`https://${mntrURL}/v1/api/core/flow/edit?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
     
-
-          } else {
+        } else {
             const payload = {flow: flow, probe: prbID, name: savename}
             resp = await fetch(`https://${mntrURL}/v1/api/core/flow/save?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
-          }
+        }
           
-          if (resp.ok) {
+        if (resp.ok) {
             document.getElementById('notificationModalLabel').textContent = "Flow Saved Successfully";
 
             document.getElementById('notif-modal-text').textContent = `The flow: "${savename}" has been saved successfully and assigned to probe: "${prbID}".`;
 
             notificationModal.show();
-          } else {
+        } else {
             document.getElementById('notificationModalLabel').textContent = "Error Saving Flow";
 
             document.getElementById('notif-modal-text').textContent = `There was an error saving the flow: "${savename}". Please try again.`;
 
             notificationModal.show();
             return false;
-          }
-        } else {
-          document.getElementById('notificationModalLabel').textContent = "No Flow Name";
-
-          document.getElementById('notif-modal-text').textContent = `Please enter a name for your flow before saving.`;
-
-          notificationModal.show();
-          return false;
         }
+      } else {
+        document.getElementById('notificationModalLabel').textContent = "No Flow Name";
+
+        document.getElementById('notif-modal-text').textContent = `Please enter a name for your flow before saving.`;
+
+        notificationModal.show();
+        return false;
       }
     });
 
     /* Mouse and Touch Actions */
 
-    var elements = document.getElementsByClassName('drag-drawflow');
-    for (var i = 0; i < elements.length; i++) {
+    const elements = document.getElementsByClassName('drag-drawflow');
+    for (const i = 0; i < elements.length; i++) {
       elements[i].addEventListener('touchend', drop, false);
       elements[i].addEventListener('touchmove', positionMobile, false);
       elements[i].addEventListener('touchstart', drag, false );
     }
 
-    var mobile_item_selec = '';
-    var mobile_last_move = null;
+    const mobile_item_selec = '';
+    const mobile_last_move = null;
    function positionMobile(ev) {
      mobile_last_move = ev;
    }
@@ -298,14 +304,14 @@
 
     function drop(ev) {
       if (ev.type === "touchend") {
-        var parentdrawflow = document.elementFromPoint( mobile_last_move.touches[0].clientX, mobile_last_move.touches[0].clientY).closest("#drawflow");
+        const parentdrawflow = document.elementFromPoint( mobile_last_move.touches[0].clientX, mobile_last_move.touches[0].clientY).closest("#drawflow");
         if(parentdrawflow != null) {
           addNodeToDrawFlow(mobile_item_selec, mobile_last_move.touches[0].clientX, mobile_last_move.touches[0].clientY);
         }
         mobile_item_selec = '';
       } else {
         ev.preventDefault();
-        var data = ev.dataTransfer.getData("node");
+        const data = ev.dataTransfer.getData("node");
         addNodeToDrawFlow(data, ev.clientX, ev.clientY);
       }
 
@@ -319,7 +325,7 @@
       pos_y = pos_y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)) - (editor.precanvas.getBoundingClientRect().y * ( editor.precanvas.clientHeight / (editor.precanvas.clientHeight * editor.zoom)));
 
       if (typeof name === "string" && name.startsWith("prb:")) {
-        if (nodeProbeCounter === 5) {
+        if (nodeProbeCounter === 3) {
           document.getElementById('notificationModalLabel').textContent = "Probe Limit Reached";
 
           document.getElementById('notif-modal-text').textContent = `You have reached the maximum number of probes allowed. Please remove a probe before adding another one.`;
@@ -327,9 +333,9 @@
           notificationModal.show();
           return false;
         } else {
-          var probe = `
+          const probe = `
               <div class="title-box">Remote Probe</div>
-              <div class="box" style="background-color: #8b7da8;>
+              <div class="box" style="background-color: #8b7da8;">
                 <nav>
                   <div class="nav nav-tabs" id="nav-tab" role="tablist">
                     <button class="nav-link active" id="nav-trace-tab" data-bs-toggle="tab" data-bs-target="#nav-trace" type="button" role="tab" aria-controls="nav-trace" aria-selected="true">Path Trace</button>
@@ -343,7 +349,7 @@
                     <form method="POST">
                       <div class="form-floating mb-3">
                         <label class="form-label">Trace Type</label>
-                        <select class="form-select" aria-label="Default select example" df-prb-trcrttype>
+                        <select class="form-select" df-prb-trcrttype>
                           <option value="trcrt">Traceroute</option>
                           <option value="trcrt_dns">DNS Traceroute</option>
                         </select>
@@ -355,17 +361,16 @@
                       <div class="form-floating mb-3">
                         <label class="form-label">Options</label>
                         <input type="text" class="form-control" df-prb-trcrtoptions>
-                        <div class="form-text">traceroute/dnstraceroute command options (optional)</div>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">DNS Server</label>
                         <input type="text" class="form-control" placeholder="DNS server to test" df-prb-trcrtdnsserver>
-                        <div class="form-text">For dnstraceroute only. Defaults to 8.8.8.8 (optional)</div>
+                        <div class="form-text">dnstraceroute only. Defaults to 8.8.8.8 (optional)</div>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Packet Length</label>
                         <input type="number" class="form-control" placeholder="Enter preferred packet length" df-prb-trcrtpktlen>
-                        <div class="form-text">For traceroute only (optional)</div>
+                        <div class="form-text">traceroute only (optional)</div>
                       </div>
                     </form>
                   </div>
@@ -381,7 +386,6 @@
                       <div class="form-floating mb-3">
                         <label class="form-label">Options</label>
                         <input type="text" class="form-control" df-prb-perfoptions>
-                        <div class="form-text">iperf command options (optional)</div>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Server Endpoint</label>
@@ -393,87 +397,60 @@
                   <div class="tab-pane fade" id="nav-scans" role="tabpanel" aria-labelledby="nav-scans-tab">
                     <form method="POST">
                       <div class="form-floating mb-3">
-                        <div class="row">
-                          <div class="col-12">
-                            <label class="form-label">Select Scan Type</label>
-                            <select class="form-select" aria-label="Select Scan Type" df-prb-scantype>
-                              <option value="scan_arp">ARP Scan</option>
-                              <option value="scan_custom">Custom Scan</option>
-                              <option value="scan_dev_id">Device Identification Scan</option> 
-                              <option value="scan_dev_fngr">Device Fingerprint Scan</option>
-                              <option value="scan_full">Full Network Scan</option>
-                              <option value="scan_snmp">SNMP Scan</option>
-                              <option value="scan_port">Port Scan</option>
+                        <label class="form-label">Select Scan Type</label>
+                        <select class="form-select" aria-label="Select Scan Type" df-prb-scantype>
+                          <option value="scan_arp">ARP Scan</option>
+                          <option value="scan_custom">Custom Scan</option>
+                          <option value="scan_dev_id">Device Identification Scan</option> 
+                          <option value="scan_dev_fngr">Device Fingerprint Scan</option>
+                          <option value="scan_full">Full Network Scan</option>
+                          <option value="scan_snmp">SNMP Scan</option>
+                          <option value="scan_port">Port Scan</option>
+                        </select>
+                      </div>
+                      <div class="form-floating mb-3">
+                        <label class="form-label">Target</label>
+                        <input type="text" class="form-control" df-prb-scantarget>
+                      </div>
+                      <div class="form-floating mb-3">
+                        <div class="row mb-3">
+                          <div class="col-6">
+                            <label class="form-check-label">Limit Fingerprint Scan</label>
+                            <select class="form-select" df-prb-scanfplimit>
+                              <option value="y">yes</option>
+                              <option value="n">no</option>
+                            </select>
+                          </div>
+                          <div class="col-6">
+                            <label class="form-check-label">Reduce Device Identification Scan Noise</label>
+                            <select class="form-select" df-prb-scandevidnoise>
+                              <option value="y">yes</option>
+                              <option value="n">no</option>
                             </select>
                           </div>
                         </div>
                       </div>
                       <div class="form-floating mb-3">
-                        <label class="form-label">Target Interface</label>
-                        <input type="text" class="form-control" df-prb-scaniface>
-                        <p class="form-text">Enter target interface for scan (Optional, defaults to primary interface on probe). </p>
-                      </div>
-                      <div class="form-floating mb-3">
-                        <label class="form-label">Target Subnet</label>
-                        <input type="text" class="form-control" df-prb-scansubnet>
-                        <p class="form-text">Enter target in CIDR notation (e.g. 192.168.1.0/24), range of IPs or single IP addresses in comma separated list. (Optional, defaults to subnet of primary interface on probe).</p>
-                      </div>
-                      <div class="form-floating mb-3">
-                        <div class="row">
+                        <div class="row mb-3">
                           <div class="col-6">
-                            <div class="form-check form-switch">
-                              <label class="form-check-label">Limit Fingerprint Scan</label>
-                              <select class="form-select" df-prb-scanfplimit>
-                                <option value="y">yes</option>
-                                <option value="n">no</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div class="col-6">
-                            <div class="form-check form-switch">
-                              <label class="form-check-label">Reduce Device Identification Scan Noise</label>
-                              <select class="form-select" df-prb-scandevidnoise>
-                                <option value="y">yes</option>
-                                <option value="n">no</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="row">
-                          <div class="col-4">
                             <label class="form-label">SNMP scripts</label>
                             <input type="text" class="form-control" placeholder="scripts" df-prb-scansnmpscripts>
-                            <p class="form-text">For SNMP Scan only. Enter comma-separated nmap SNMP scripts to run (optional)</p>
                           </div>
-                          <div class="col-4">
-                            <div class="form-check form-switch">
-                              <label class="form-check-label">SNMP Community</label>
-                              <input type="text" class="form-control" placeholder="community" df-prb-snmpcommunity>
-                            </div>
-                          </div>
-                          <div class="col-4">
-                            <label class="form-label">Ports to scan</label>
-                            <input type="text" class="form-control" placeholder="ports" df-prb-scanports>
-                            <p class="form-text">For Port Scan only. Enter comma-separated ports to scan (optional)</p>
+                          <div class="col-6">
+                            <label class="form-check-label">SNMP Community</label>
+                            <input type="text" class="form-control" placeholder="community" df-prb-snmpcommunity>
                           </div>
                         </div>
                       </div>
                       <div class="form-floating mb-3">
-                        <div class="row">
-                          <div class="col-6">
-                            <div class="form-check form-switch">
-                              <label class="form-check-label">SNMP Scan Type</label>
-                              <select class="form-select" df-prb-scansnmptype>
-                                <option value="snmp_opn">Open</option>
-                                <option value="snmp_enum">Enumeration</option>
-                                <option value="snmp_all">All</option>
-                              </select>
-                            </div>
-                          </div>
+                        <div class="row mb-3">
                           <div class="col-6">
                             <label class="form-label">Command Options</label>
                             <input type="text" class="form-control" df-prb-scanoptions>
-                            <div class="form-text" id="scan-addon4">Options for the scan command</div>
+                          </div>
+                          <div class="col-6">
+                            <label class="form-label">Ports to scan</label>
+                            <input type="text" class="form-control" placeholder="ports" df-prb-scanports>
                           </div>
                         </div>
                       </div>
@@ -483,111 +460,81 @@
                     <form method="POST">
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
-                          <div class="col-12">
+                          <div class="col-6">
                             <label class="form-label">Capture Mode</label>
-                            <select class="form-select" aria-label="Capture Mode" df-prb-pcapmode>
+                            <select class="form-select" df-prb-pcapmode>
                               <option value="pcap_lcl">Local Capture</option>
                               <option value="pcap_tux">Remote Linux Capture</option>
                               <option value="pcap_win">Remote Windows Capture</option>
                             </select>
                           </div>
+                          <div class="col-6">
+                            <label class="form-label">Use Default Local Interface</label>
+                            <select class="form-select mb-3" df-prb-pcaplcliface>
+                              <option value="y">yes</option>
+                              <option value="n">no</option>
+                            </select>
+                            <input type="text" class="form-control" placeholder="Local interface to use." df-prb-pcaplclifacechoice>
+                          </div>
                         </div>
                         <div class="row mb-3">
-                          <div class="col-4">
+                          <div class="col-6">
                             <label class="form-label">Remote Host</label>
                             <input type="text" class="form-control" placeholder="IP of remote host for capture" df-prb-pcaprmhost>
                           </div>
-                          <div class="col-4">
+                          <div class="col-6">
                             <label class="form-label">Remote User</label>
                             <input type="text" class="form-control" placeholder="Username for remote host" df-prb-pcaprmuser>
                           </div>
-                          <div class="col-4">
+                        </div>
+                      </div>
+                      <div class-"form-floating mb-3">
+                        <div class="row mb-3">
+                          <div class="col-6">
                             <label class="form-label">Remote Password</label>
                             <input type="password" class="form-control" placeholder="Password for remote host" df-prb-pcaprmpass>
+                          </div>
+                          <div class="col-6">
+                            <label class="form-label">Remote Interface</label>
+                            <input type="password" class="form-control" placeholder="Caputer interface for remote host" df-prb-pcaprmiface>
                           </div>
                         </div>
                       </div>
                       <div class="form-floating mb-3">
-                        <label class="form-label">Capture Count (Linux & Local only)</label>
-                        <input type="number" class="form-control" placeholder="The number of packets to capture" df-prb-pcapcount>
-                      </div>
-                      <div class="form-floating mb-3">
-                        <label class="form-label">Capture Duration (Windows only)</label>
-                        <input type="number" class="form-control" placeholder="Capture duration in seconds" df-prb-pcapduration>
+                        <div class="row mb-3">
+                          <div class="col-6">
+                            <label class="form-label">Capture Count (Linux & Local only)</label>
+                            <input type="number" class="form-control" placeholder="The number of packets to capture" df-prb-pcapcount>
+                          </div>
+                          <div class="col-6">
+                            <label class="form-label">Capture Duration (Windows only)</label>
+                            <input type="number" class="form-control" placeholder="Capture duration in seconds" df-prb-pcapduration>
+                          </div>
+                        </div>
                       </div>
                     </form>
                   </div>              
               </div>
               `;
-          data = { type: 'probe', name: name };
+          const data = { type: 'probe', name: name };
           editor.addNode(name, 0, 0, pos_x, pos_y, name, data, probe);
 
         }
-      } else if (name === 'smartbot') {
-        if (agentCounter === 1) {
-          document.getElementById('notificationModalLabel').textContent = "Agent Limit Reached";
-
-          document.getElementById('notif-modal-text').textContent = `You have reached the maximum number of agents allowed. Please remove an agent before adding another one.`;
-
-          notificationModal.show();
-          return false;
-        } else {
-          var bot = `
+      } else if (typeof name === 'string' && name === 'slack' || name === 'jira' || name === 'email') {
+        const alert = `
             <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>${name === 'smartbot' ? 'Smart Bot' : 'Flow Bot'}</div>
+              <div class="title-box"><i class="fa-solid fa-circle-exclamation"></i></i>${name} Alert</div>
               <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Bot Name</label>
-                  <input type="text" class="form-control" placeholder="Enter a name for this bot..." df-bot-name>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Bot Prompt</label>
-                  <input type="text" class="form-control" placeholder="Enter a prompt for this bot..." df-bot-prompt>
-                </div>
               </div>
             </div>
-              `;
-          data = {type: 'agent', name: name}
-          editor.addNode(name, 0, 0, pos_x, pos_y, name, data, bot );
-        }
+            `;
+            const alert_data = {type: 'alert', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, alert_data, alert );
 
       } else {
         switch (name) {
-          case 'slack':
-            var slackchat = `
-            <div>
-              <div class="title-box"><i class="fab fa-slack"></i>Slack</div>
-              <div class="box">
-              </div>
-            </div>
-            `;
-            data = {type: 'alert', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, slackchat );
-            break;
-          case 'jsm':
-            var jira = `
-            <div>
-              <div class="title-box"><i class="fab fa-jira"></i>Jira</div>
-              <div class="box">
-              </div>
-            </div>
-            `;
-            data = {type: 'alert', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, jira );
-            break;
-          case 'email':
-            var email = `
-            <div>
-              <div class="title-box"><i class="fab fa-envelope"></i>Email</div>
-              <div class="box">
-              </div>
-            </div>
-              `;
-            data = {type: 'alert', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, email );
-            break;
           case 'scan_arp':
-            var arp = `
+            const arp = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>ARP Scan</div>
               <div class="box">
@@ -603,11 +550,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const arp_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, arp_data, arp );
             break;
           case 'scan_custom':
-            var arp = `
+            const custom = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Custom Scan</div>
               <div class="box">
@@ -623,11 +570,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const custom_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, custom_data, custom );
             break;
           case 'scan_dev_id':
-            var arp = `
+            const dev_id = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Device ID Scan</div>
               <div class="box">
@@ -646,11 +593,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const devid_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, devid_data, dev_id );
             break;
           case 'scan_dev_fngr':
-            var arp = `
+            const fingerprint = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Device Fingerprint Scan</div>
               <div class="box">
@@ -669,11 +616,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const fingerprint_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, fingerptint_data, fingerprint );
             break;
           case 'scan_full':
-            var arp = `
+            const full = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Full Scan</div>
               <div class="box">
@@ -684,11 +631,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const full_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, full_data, full );
             break;
           case 'scan_snmp':
-            var arp = `
+            const snmp = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>SNMP Scan</div>
               <div class="box">
@@ -722,11 +669,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const snmp_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, snmp_data, snmp );
             break;
           case 'scan_port':
-            var arp = `
+            const port = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Port Scan</div>
               <div class="box">
@@ -742,11 +689,11 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const port_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, port_data, port );
             break;
           case 'test_srvr':
-            var tool = `
+            const server = `
               <div style="background-color: #8b7da8;>
                 <div class="title-box">Performance Test Server</div>
                 <div class="box" style="background-color: #8b7da8;">
@@ -762,11 +709,11 @@
                 </div>
               </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
+            const server_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, server_data, server );
             break;
           case 'test_clnt':
-            var tool = `
+            const client = `
               <div style="background-color: #8b7da8;>
                 <div class="title-box">Performance Test Client</div>
                 <div class="box" style="background-color: #8b7da8;">
@@ -787,11 +734,11 @@
                 </div>
               </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
+            const client_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, client_data, client );
             break;
           case 'trcrt':
-            var tool = `
+            const trcrt = `
               <div style="background-color: #8b7da8;>
                 <div class="title-box">Traceroute </div>
                 <div class="box" style="background-color: #8b7da8;">
@@ -810,11 +757,11 @@
                 </div>
               </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
+            const trcrt_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, trcrt_data, trcrt );
             break;
           case 'trcrt_dns': 
-              var tool = `
+              const trcrtdns = `
               <div style="background-color: #8b7da8;">
                 <div class="title-box">DNS Traceroute </div>
                 <div class="box" style="background-color: #8b7da8;">
@@ -833,11 +780,11 @@
                 </div>
               </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, tool );
+            const dns_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, dns_data, trcrtdns );
             break;
           case 'pcap_lcl':
-            var arp = `
+            const pcap_lcl = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Local Packet Capture</div>
               <div class="box">
@@ -853,12 +800,12 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const pcap_lcl_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, pcap_lcl_data, pcap_lcl );
             break;
           case 'pcap_tux':
           case 'pcap_win':
-            var arp = `
+            const pcap_rm = `
             <div>
               <div class="title-box"><i class="fab fa-telegram-plane"></i>Local Packet Capture</div>
               <div class="box">
@@ -895,8 +842,8 @@
               </div>
             </div>
               `;
-            data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, data, arp );
+            const pcap_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, pcap_data, pcap_rm );
             break;
         }
 
@@ -904,7 +851,7 @@
       
     }
 
-  var transform = '';
+  const transform = '';
   function showpopup(e) {
     e.target.closest(".drawflow-node").style.zIndex = "9999";
     e.target.children[0].style.display = "block";
@@ -934,8 +881,8 @@
    }
 
     function changeModule(event) {
-      var all = document.querySelectorAll(".menu ul li");
-        for (var i = 0; i < all.length; i++) {
+      const all = document.querySelectorAll(".menu ul li");
+        for (const i = 0; i < all.length; i++) {
           all[i].classList.remove('selected');
         }
       event.target.classList.add('selected');

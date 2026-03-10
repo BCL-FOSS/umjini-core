@@ -1,4 +1,4 @@
-from init_app import (app, client_auth, current_admin, current_client, logger,
+from init_app import (app, client_auth, current_client, logger,
                       Client
                       )
 from forms.LoginForm import LoginForm
@@ -80,22 +80,13 @@ async def ip_blocker(auto_ban: bool = False):
             auth_attempts.pop(request.access_route[-1], None)
             abort(403) 
 
-def admin_login_required(func):
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        if current_admin.auth_id is not None and await cl_sess_db.get_all_data(match=f"{current_admin.auth_id}", cnfrm=True) is True: 
-            admin_data = await cl_sess_db.get_all_data(match=f"{current_admin.auth_id}")
-            admin_data_sub_dict = next(iter(admin_data.values()))
-
-    return wrapper
-
 def user_login_required(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         auth_id = current_client.auth_id
         jwt_token = request.cookies.get("access_token")
 
-        if auth_id is None or "".strip() or await cl_sess_db.get_all_data(match=f"{auth_id}", cnfrm=True) is False or jwt_token is None or "".strip():
+        if auth_id is None or auth_id.strip() == "" or await cl_sess_db.get_all_data(match=f"{auth_id}", cnfrm=True) is False or jwt_token is None or jwt_token.strip() == "":
             await ip_blocker()
             return Unauthorized()
         
@@ -415,11 +406,20 @@ async def probe(cmp_id, obsc, prb_id):
     cur_usr_id = current_client.auth_id
     session["csrf_ready"] = True
     user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
+    probe_data = None
+    probe_data_dict = None
+    ifaces = None
+    flows = None
+    trace_results = None
+    perf_results = None
+    scan_results = None
+    pcap_results = None
+    all_tasks = None
 
     if prb_id != "default":
         probe_data = await cl_data_db.get_all_data(match=f"*{prb_id}*")
         probe_data_dict = next(iter(probe_data.values()))
-
+        ifaces = probe_data_dict.get('iface_list')
         flows = await cl_data_db.get_all_data(match=f"flow:{prb_id}:*")
         trace_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:trcrt*")
         perf_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:test_clnt*")
@@ -434,9 +434,10 @@ async def probe(cmp_id, obsc, prb_id):
         scan_results = {'':''}
         pcap_results = {'':''}
         all_tasks = {'':''}
+        ifaces = []
 
     return await render_template("app/probe.html", obsc_key=session.get('url_key') ,
-                                flows=flows, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, ws_url=ws_url, data=user_data, probe_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, all_tasks=all_tasks, probe_data=probe_data_dict)
+                                flows=flows, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, ws_url=ws_url, data=user_data, probe_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, all_tasks=all_tasks, probe_data=probe_data_dict, ifaces=ifaces)
 
 @app.route('/alerts', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default', 'alert_type': 'default'}, methods=['GET', 'POST'])
 @app.route("/alerts/<string:cmp_id>/<string:obsc>/<string:prb_id>/<string:alert_type>", methods=['GET', 'POST'])

@@ -1,0 +1,187 @@
+# Caddyfile
+
+{
+    order coraza_waf first
+}
+
+umjiniti.baughcl.tech {
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+
+    # ---- Coraza WAF (protects all requests to this site) ----
+    coraza_waf {
+        load_owasp_crs
+
+        directives `
+            # Enable WAF engine
+            SecRuleEngine On
+
+            # Initialize TX collection and set paranoia level
+            SecAction "id:900000,phase:1,pass,nolog,setvar:tx.paranoia_level=1"
+            SecAction "id:900001,phase:1,pass,nolog,setvar:tx.inbound_anomaly_score_threshold=5"
+            SecAction "id:900002,phase:1,pass,nolog,setvar:tx.outbound_anomaly_score_threshold=4"
+
+            # Request/Response body processing
+            SecRequestBodyAccess On
+            SecResponseBodyAccess Off
+            SecRequestBodyLimit 13107200
+            SecRequestBodyNoFilesLimit 131072
+            SecRequestBodyInMemoryLimit 131072
+            
+            # Disable response body inspection for WebSockets and streaming
+            SecRule REQUEST_URI "@rx ^/(ws|init|enroll|workflow)" \
+                "id:100000,phase:1,pass,nolog,ctl:responseBodyAccess=Off"
+
+            # Request body processor for JSON APIs
+            SecRule REQUEST_URI "@rx ^/(prbs|enroll|delete|workflow)" \
+                "id:100001,phase:1,pass,nolog,ctl:requestBodyProcessor=JSON"
+
+            # Include recommended configs and OWASP CRS
+            Include @coraza.conf-recommended
+            Include @crs-setup.conf.example
+            Include @owasp_crs/*.conf
+
+            # --- WebSocket specific rules ---
+            # Allow WebSocket upgrade without blocking the connection upgrade
+            SecRule REQUEST_URI "@beginsWith /ws" \
+                "id:100010,phase:1,pass,nolog,msg:'WebSocket path detected',\
+                ctl:ruleRemoveById=920230,\
+                ctl:ruleRemoveById=920270,\
+                ctl:ruleRemoveById=920280,\
+                ctl:ruleRemoveById=920420"
+
+            # --- API endpoint tuning ---
+            # Relax SQLi and XSS rules for specific API endpoints that use JSON
+            SecRule REQUEST_URI "@rx ^/(prbs|enroll|workflow|delete)" \
+                "id:100020,phase:1,pass,nolog,msg:'API endpoint - relax specific rules',\
+                ctl:ruleRemoveById=941100,\
+                ctl:ruleRemoveById=941110,\
+                ctl:ruleRemoveById=941160,\
+                ctl:ruleRemoveById=942100,\
+                ctl:ruleRemoveById=942130,\
+                ctl:ruleRemoveById=942200,\
+                ctl:ruleRemoveById=942260,\
+                ctl:ruleRemoveById=942370,\
+                ctl:ruleRemoveById=942430,\
+                ctl:ruleRemoveById=942440"
+
+            # Allow larger payloads for enrollment and workflow endpoints
+            SecRule REQUEST_URI "@rx ^/(enroll|workflow)" \
+                "id:100030,phase:1,pass,nolog,msg:'Allow larger payload',\
+                ctl:requestBodyLimit=26214400"
+
+            # --- Authentication endpoints ---
+            # Allow authentication-related endpoints with minimal restrictions
+            SecRule REQUEST_URI "@rx ^/(login|register|logout)" \
+                "id:100040,phase:1,pass,nolog,msg:'Auth endpoint',\
+                ctl:ruleRemoveById=942100,\
+                ctl:ruleRemoveById=942430"
+
+            # --- Frontend static content ---
+            # Reduce checks for frontend static resources
+            SecRule REQUEST_URI "@rx \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$" \
+                "id:100050,phase:1,pass,nolog,msg:'Static resource',\
+                setvar:tx.inbound_anomaly_score_threshold=10"
+
+            # --- Logging and monitoring ---
+            SecAuditEngine RelevantOnly
+            SecAuditLogRelevantStatus "^(?:5|4(?!04))"
+            SecAuditLogParts ABIJDEFHZ
+        `
+    }
+    # ---- End Coraza WAF block ----
+
+    # WebSocket connections (must be handled before other paths)
+    handle /ws* {
+        reverse_proxy @websockets socketapp:5000 {
+            # WebSocket specific settings
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Backend API endpoints (socketapp:5000)
+    handle /init* {
+        reverse_proxy socketapp:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /enroll* {
+        reverse_proxy socketapp:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /delete* {
+        reverse_proxy socketapp:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /workflow* {
+        reverse_proxy socketapp:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Frontend routes (agentapp:4000)
+    handle /login* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /register* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /agent* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /settings* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /logout* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /wkflw* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /prbs* {
+        reverse_proxy agentapp:4000
+    }
+
+    handle /netvis* {
+        reverse_proxy agentapp:4000
+    }
+
+    # Default handler for root and other frontend routes
+    handle /* {
+        reverse_proxy agentapp:4000
+    }
+
+    # Error handling
+    handle_errors {
+        @blocked expression {http.error.status_code} == 403
+        respond @blocked "Access Denied by WAF" 403
+    }
+}

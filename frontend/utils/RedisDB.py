@@ -1,6 +1,5 @@
 import redis.asyncio as redis
 import json
-from quart import flash
 import logging
 
 class RedisDB:
@@ -100,42 +99,6 @@ class RedisDB:
             else:
                 return None
                 
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-        finally:
-            await self.redis_conn.close()
-
-async def set_stream_msg(self, key: str, message: dict):
-        try:
-           
-            result = await self.redis_conn.xadd(name=key, fields={"message": json.dumps(message)})
-
-            return result if result is not None else None
-
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-        finally:
-            await self.redis_conn.close()
-
-async def get_stream_msgs(self, key: str, last_id: str = '0'):
-        try:
-            # Read last 100 messages
-            messages = await self.redis_conn.xrange(name=key, min=last_id, max="+", count=100)
-
-            return messages if messages is not None else None
-            
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-        finally:
-            await self.redis_conn.close()
-
-async def del_stream_msgs(self, key: str):
-        try:
-            # Read last 100 messages
-            messages = await self.redis_conn.xdel(name=key)
-
-            return messages if messages is not None else None
-            
         except Exception as e:
             return json.dumps({"error": str(e)})
         finally:

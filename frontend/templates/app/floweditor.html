@@ -62,7 +62,7 @@
           <li>
             <div class="dropdown">
               <button class="btn btn-secondary dropdown-toggle" type="button" id="probeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                Call Remote Probe: 
+                Probes 
               </button>
               <ul class="dropdown-menu" aria-labelledby="probeDropdown">
                 {% for probe in all_probes.values() %}
@@ -122,10 +122,7 @@
         editor.clearModuleSelected();
         editor.import(JSON.parse(j.flow));
 
-        document.getElementById('flowDropdown').disabled = true;
-        document.getElementById('flowDropdown').classList.add('d-none');
-        document.getElementById('flow-save-name').textContent = j.name;
-
+        document.getElementById('flow-save-name').value = j.name;
         document.getElementById('notificationModalLabel').textContent = "Flow Loaded Successfully";
         document.getElementById('notif-modal-text').textContent = `The flow: "${j.name}" has been loaded successfully.`;
 

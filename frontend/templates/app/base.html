@@ -825,12 +825,12 @@
         "task": traceType,
         "user_id": curUsrID,
         "prms": {
-          "target": traceTarget
+          "tool_prms": {"target": traceTarget},
+          
         }
       };
 
       if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
-        taskData["llm"] = 'smartbot';
         taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
         taskData["alerts"] = {};
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
@@ -857,15 +857,15 @@
       }
 
       if (traceDNSServer) {
-        taskData["prms"]["server"] = traceDNSServer;
+        taskData["prms"]['tool_prms']["server"] = traceDNSServer;
       }
 
       if (traceOptions) {
-        taskData["prms"]["options"] = traceOptions;
+        taskData["prms"]['tool_prms']["options"] = traceOptions;
       }
 
       if (tracePacketLen) {
-        taskData["prms"]["packetlen"] = tracePacketLen;
+        taskData["prms"]['tool_prms']["packetlen"] = tracePacketLen;
       }
 
       if (taskExecSwitch.checked) {
@@ -977,18 +977,20 @@
         "prb_id": current_pid,
         "task": spdtstType,
         "user_id": curUsrID,
+          "prms": {
+            "tool_prms": {}
+          }
       };
 
       if (spdtstClientOptions && spdtstType === "spdtst_clnt") {
-        taskData["prms"]["server"] = spdtstClientOptions;
+        taskData["prms"]['tool_prms']["server"] = spdtstClientOptions;
       }
 
       if (spdtstOptions) {
-        taskData["prms"]["options"] = spdtstOptions;
+        taskData["prms"]['tool_prms']["options"] = spdtstOptions;
       }
 
       if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
-        taskData["llm"] = 'smartbot';
         taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
         taskData["alerts"] = {};
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
@@ -1124,8 +1126,10 @@
         "prb_id": current_pid,
         "task": scanType,
         "user_id": curUsrID,
-        "prms": {
-          "subnet": scanTarget
+        "prms": { 
+          "tool_prms": {
+            "target": scanTarget
+          }
         }
       };
 
@@ -1134,31 +1138,30 @@
       }
 
       if (scanOptions && scanType === "scan_custom") {
-        taskData["prms"]["options"] = scanOptions;
+        taskData["prms"]['tool_prms']["options"] = scanOptions;
       }
 
       if (scanSNMPScript && scanType === "scan_snmp") {
-        taskData["prms"]["scripts"] = scanSNMPScript;
+        taskData["prms"]['tool_prms']["scripts"] = scanSNMPScript;
       }
 
       if (scanSNMPCommunity && scanType === "scan_snmp") {
-        taskData["snmp_community"] = scanSNMPCommunity;
+        taskData["prms"]['tool_prms']["community"] = scanSNMPCommunity;
       }
 
       if (scanDevIDNoise.checked && scanType === "scan_dev_id") {
-        taskData["prms"]["noise"] = true;
+        taskData["prms"]['tool_prms']["noise"] = true;
       }
 
        if (scanFPLimit.checked && scanType === "scan_dev_fngr") {
-        taskData["prms"]["limit"] = true;
+        taskData["prms"]['tool_prms']["limit"] = true;
       }
 
        if (scanPorts && scanType === "scan_port") {
-        taskData["prms"]["ports"] = scanPorts;
+        taskData["prms"]['tool_prms']["ports"] = scanPorts;
       }
 
       if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
-        taskData["llm"] = 'smartbot';
         taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
         taskData["alerts"] = {};
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
@@ -1289,25 +1292,27 @@
         "prb_id": current_pid,
         "task": pcapType,
         "user_id": curUsrID,
+        "prms": { 
+          "tool_prms": {}
+        }
       };
 
       if (pcapInterface && pcapType != "pcap_lcl") {
-        taskData["prms"]["remote_iface"] = pcapInterface;
+        taskData["prms"]["tool_prms"]["remote_iface"] = pcapInterface;
       }
 
       if (pcapInterface && pcapType === "pcap_lcl") {
-        taskData["prms"]["interface"] = pcapInterface;
+        taskData["prms"]["tool_prms"]["interface"] = pcapInterface;
       }
       if (pcapDuration && pcapType !== "pcap_win") {
-        taskData["prms"]["duration"] = pcapDuration;
+        taskData["prms"]["tool_prms"]["duration"] = pcapDuration;
       }
 
       if (pcapCount && pcapType === "pcap_tux") {
-        taskData["prms"]["cap_count"] = pcapCount;
+        taskData["prms"]["tool_prms"]["cap_count"] = pcapCount;
       }
 
       if (taskSmartBotSwitch.checked && taskSmartBotPrompt.value.trim()) {
-        taskData["llm"] = 'smartbot';
         taskData["llm_data"] = { "prompt": taskSmartBotPrompt.value.trim() };
         taskData["alerts"] = {};
         taskData["alerts"]["tools"] = document.getElementById('taskAlertDropdown').value;
@@ -1643,6 +1648,7 @@
           "oper": "init_task",
           "auto_type": "chat",  
           "llm_data": {"prompt": document.getElementById("chat-convert-msg").dataset.usr_msg},
+          "tool_calls": document.getElementById("chat-convert-msg").dataset.tool_calls ? JSON.parse(document.getElementById("chat-convert-msg").dataset.tool_calls) : [],
           "user_id": curUsrID,
           "task_id": document.getElementById("chat-convert-msg").dataset.chatId
         };

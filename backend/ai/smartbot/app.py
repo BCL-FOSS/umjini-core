@@ -372,12 +372,3 @@ async def multitools():
     logger.info(response_payload)
 
     return jsonify(response_payload)
-
-@app.route('/v1/exec', methods=['POST'])
-async def exec():
-    data = await request.get_json()
-    logger.info(data)
-    headers['x-api-key'] = data['prb-api-key']
-    result = await call_mcp(server_url=data['prb-url'], tool_call=data)
-
-    return {"tool": data['name'], "server_url": data['prb-url'], "output": result}

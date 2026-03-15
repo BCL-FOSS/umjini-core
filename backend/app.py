@@ -401,11 +401,7 @@ async def _receive() -> None:
                     if await cl_data_db.get_all_data(match=f'*uid:{message["usr"]}*', cnfrm=True) is True:
                         agent_msg_data = {}
                         
-                        #selected_probe = await cl_data_db.get_all_data(match=f"*{message['prb_id']}*")
-
-                        #selected_probe_dict = next(iter(selected_probe.values()))
-                        
-                        api = message['api_key'] #selected_probe_dict.get('prb_api_key')
+                        api = message['api_key']
 
                         processing_msg_data = {
                             "from": "agent",
@@ -419,6 +415,10 @@ async def _receive() -> None:
                         tool_request, analysis_request = await run_sync(lambda: util_obj.split_analysis(text=message['msg']))()
 
                         logger.info(f'Tool request: {tool_request}, Analysis request: {analysis_request}')
+                        saved_tools_instructions = ""
+
+                        if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
+                            saved_tools_instructions = connected_probes.get(message['prb_id']).get('tool_instructions')
 
                         async with httpx.AsyncClient() as client:
                             payload = {
@@ -437,6 +437,9 @@ async def _receive() -> None:
                                 'user': message['usr'],
                             }
 
+                            if saved_tools_instructions != "":
+                                payload['tool_instructions'] = saved_tools_instructions
+
                             headers = {'content-type': 'application/json'}
                             
                             tool_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
@@ -446,6 +449,9 @@ async def _receive() -> None:
                             logger.info(tool_resp.json())
 
                             tool_msg = tool_resp.json()  
+
+                            if saved_tools_instructions == "":
+                                connected_probes.get(message['prb_id'])['tool_instructions'] = tool_msg['tool_instructions']
 
                             logger.info(tool_msg['output_text'])
 
@@ -492,14 +498,6 @@ async def _receive() -> None:
                                         + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
                                     )
 
-                                    tool_instructions = ""
-
-                                    if connected_probes.get(message['prb_id'])['tool_instructions'] is None:
-                                        connected_probes[message['prb_id']]['tool_instructions'] = tool_msg['tool_instructions']
-                                        tool_instructions = tool_msg['tool_instructions']
-                                    else:
-                                        tool_instructions = connected_probes.get(message['prb_id'])['tool_instructions']
-
                                     analysis_payload = {
                                         'model': os.environ.get('OLLAMA_MODEL'),
                                         'tools':[
@@ -513,9 +511,11 @@ async def _receive() -> None:
                                         'usr_input': f"{analysis_msg}",
                                         'instructions': analysis_instructions,
                                         'api_key': api,
-                                        'user': message['usr'],
-                                        'tool_instructions': tool_instructions
+                                        'user': message['usr']
                                     }
+
+                                    if connected_probes.get(message['prb_id']).get('tool_instructions') != "":
+                                        analysis_payload['tool_instructions'] = connected_probes.get(message['prb_id']).get('tool_instructions')
 
                                     smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=analysis_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
 
@@ -882,6 +882,8 @@ async def heartbeat(probe_id):
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
+        usr_sess_id = websocket.args.get('sess_id') if websocket.args.get('sess_id') is not None else None
+
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
@@ -890,11 +892,9 @@ async def heartbeat(probe_id):
             await ip_blocker(conn_obj=websocket)
             await websocket.close()
 
-        usr = websocket.args.get('usr') if websocket.args.get('usr') is not None else None
-
         monitor_task = None
         if probe_id and (probe_id not in connected_probes):
-            if usr is not None:
+            if usr_sess_id is not None:
                 await websocket.close()
                 
             now = datetime.now(tz=timezone.utc)
@@ -919,6 +919,10 @@ async def heartbeat(probe_id):
             await cl_data_db.upload_db_data(id=current_probe_data_dict.get('db_id'), data=online_status)
 
         if probe_id and (probe_id in connected_probes):
+            if usr_sess_id is not None:
+                if await cl_sess_db.get_all_data(match=f'*{usr_sess_id}*', cnfrm=True) is False:
+                    await websocket.close()
+
             asyncio.ensure_future(_receive())
             monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
 
@@ -1131,7 +1135,7 @@ async def enroll():
     else:
         return jsonify({'status':'probe adoption failed'}), 400
     
-@app.route('/v1/api/core/probes/<string:prb_id>/exec', methods=['POST'])
+@app.route('/v1/api/core/probes/exec/<string:prb_id>', methods=['POST'])
 @rate_exempt
 async def exec(prb_id):
     logger.info(request.args)
@@ -1144,19 +1148,15 @@ async def exec(prb_id):
         await ip_blocker(conn_obj=request)
         abort(401)
 
-    await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
-
     if await ws_rate_limiter.check_rate_limit(client_id=jwt_token) is False:
         await ip_blocker(conn_obj=request)
         abort(401)
 
+    await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
+
     data = await request.get_json()
 
-    if not data['prb_id']:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    if await cl_data_db.get_all_data(match=f"*{prb_id}*", cnfrm=True) is False:
+    if not data['prb_id'] or await cl_data_db.get_all_data(match=f"*{prb_id}*", cnfrm=True) is False:
         await ip_blocker(conn_obj=request)
         abort(401)
 
@@ -1166,34 +1166,25 @@ async def exec(prb_id):
     logger.info(prb_data_dict)
 
     async with httpx.AsyncClient() as client:
-        data['prb-api-key'] = prb_data_dict.get('prb_api_key')
-        data['prb-url'] = prb_data_dict.get('url')
 
-        headers = {'content-type': 'application/json'}
+        headers = {'content-type': 'application/json',
+                   'x-api-key': prb_data_dict.get('prb_api_key')
+                   }
+
+        probe_tool_call_data = {
+            'action': data['tool'],
+            'params': data['tool_prms']
+        }
                             
-        exec_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/exec", json=data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+        exec_resp = await client.post(f"{prb_data_dict.get('url')}/v1/api/exec", json=probe_tool_call_data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+
+        exec_resp_data = exec_resp.json()
+        logger.info(exec_resp_data)
 
         if exec_resp.status_code == 200:
-            exec_data = await exec_resp.json()
-            output_message = ""
-            logger.info(f"Request result = {exec_data['output_text']}\n")
-            logger.info(type(exec_data['output_text']))
-
-            exec_data_json = json.loads(exec_data['output_text'])
-
-            for item in exec_data_json:
-                net_cmd_output = item['output'][1]
-                logger.info(f"Net command output: {net_cmd_output}")
-                decoded_output = net_cmd_output.encode('utf-8').decode('unicode_escape')
-                lines = decoded_output.split('\n')
-
-                for i, line in enumerate(lines):
-                    net_cmd_data = f'{line}\n'
-                    output_message+=net_cmd_data
-
-            return jsonify({'output': output_message}), 200
+            return jsonify({'output': exec_resp_data}), 200
         else:
-            return jsonify({'status':'error'}), 400
+            return jsonify({'error': exec_resp_data}), 400
     
 @app.route('/v1/api/core/probes/delete', methods=['POST'])
 async def delete():

@@ -30,27 +30,19 @@
                 Tools
               </button>
               <ul class="dropdown-menu" aria-labelledby="actionDropdown">
-                <li><h6 class="dropdown-header">Scans</h6></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_arp"><i class="fas fa-network-wired"></i>ARP</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_custom"><i class="fas fa-search"></i>Custom</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_dev_id"><i class="fas fa-id-badge"></i>Device Identification</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_dev_fngr"><i class="fas fa-fingerprint"></i>Device Fingerprint</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_full"><i class="fas fa-network-wired"></i>Full</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_snmp"><i class="fas fa-server"></i>SNMP</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scan_port"><i class="fas fa-portal-enter"></i>Port</div></li>
+                <li><h6 class="dropdown-header">Discovery/Reconnaissance</h6></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="scans"><i class="fas fa-network-wired"></i>Scan Config</div></li>
 
-                <li><h6 class="dropdown-header">Performance Tests</h6></li>
+                <li><h6 class="dropdown-header">Performance Test</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="test_srvr"><i class="fas fa-server"></i>Server</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="test_clnt"><i class="fas fa-wifi"></i>Client</div></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="test_clnt"><i class="fas fa-server"></i>Client</div></li>
 
                 <li><h6 class="dropdown-header">Path Trace</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="trcrt"><i class="fas fa-route"></i>Traceroute</div></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="trcrt_dns"><i class="fas fa-route"></i>DNS Traceroute</div></li>
 
                 <li><h6 class="dropdown-header">Packet Capture</h6></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_lcl"><i class="fas fa-capture"></i>Local</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_tux"><i class="fas fa-capture"></i>Remote Linux</div></li>
-                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcap_win"><i class="fas fa-capture"></i>Remote Windows </div></li>
+                <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="pcaps"><i class="fas fa-capture"></i>PCAP Config</div></li>
 
                 <li><h6 class="dropdown-header">Alerts</h6></li>
                 <li><div class="dropdown-item drag-drawflow" draggable="true" ondragstart="drag(event)" data-node="slack"><i class="fab fa-slack"></i>Slack</div></li>
@@ -104,6 +96,10 @@
     let alertCounter = 0;
     let currentAlertNodes = {};
     let currentSelectedAlert = null;
+
+    let botCounter = 0;
+    let currentBotNodes = {};
+    let currentSelectedBot = null;
 
     const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
     const id = document.getElementById("drawflow");
@@ -162,6 +158,10 @@
         alertCounter++;
         currentAlertNodes[id] = currentSelectedProbe;
         currentSelectedAlert = currentSelectedProbe;
+      } else if (currentSelectedProbe.data.type === 'smartbot') {
+        botCounter++;
+        currentBotNodes[id] = currentSelectedProbe;
+        currentSelectedBot = currentSelectedProbe;
       } else {
         console.log("Node created" + id);
       }
@@ -177,6 +177,10 @@
         delete currentAlertNodes[id];
         alertCounter--;
         currentSelectedAlert = null;
+      } else if (currentBotNodes.hasOwnProperty(id)) {
+        delete currentBotNodes[id];
+        botCounter--;
+        currentSelectedBot = null;
       } else {
         console.log("Node removed" + id);
       }
@@ -357,17 +361,15 @@
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Options</label>
-                        <input type="text" class="form-control" df-prb-trcrtoptions>
+                        <input type="text" class="form-control" placeholder="Enter traceroute options" df-prb-trcrtoptions>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">DNS Server</label>
-                        <input type="text" class="form-control" placeholder="DNS server to test" df-prb-trcrtdnsserver>
-                        <div class="form-text">dnstraceroute only. Defaults to 8.8.8.8 (optional)</div>
+                        <input type="text" class="form-control" placeholder="DNS server to test. defaults to 8.8.8.8 (optional)" df-prb-trcrtdnsserver>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Packet Length</label>
-                        <input type="number" class="form-control" placeholder="Enter preferred packet length" df-prb-trcrtpktlen>
-                        <div class="form-text">traceroute only (optional)</div>
+                        <input type="number" class="form-control" placeholder="Enter preferred packet length (traceroute only)" df-prb-trcrtpktlen>
                       </div>
                     </form>
                   </div>
@@ -376,18 +378,17 @@
                       <div class="form-floating mb-3">
                         <label class="form-label">Endpoint Type</label>
                         <select id="spdtst-dropdown" class="form-select" df-prb-perftype>
-                          <option value="spdtst_srvr">Server Mode</option>
-                          <option value="spdtst_clnt">Client Mode</option>
+                          <option value="test_srvr">Server Mode</option>
+                          <option value="test_clnt">Client Mode</option>
                         </select>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Options</label>
-                        <input type="text" class="form-control" df-prb-perfoptions>
+                        <input type="text" class="form-control" placeholder="Enter performance test options" df-prb-perfoptions>
                       </div>
                       <div class="form-floating mb-3">
                         <label class="form-label">Server Endpoint</label>
-                        <input type="text" class="form-control" df-prb-perfserver>
-                        <div class="form-text">NOTICE: For probes set in Client mode only</div>
+                        <input type="text" class="form-control" placeholder="For probes set in Client mode only" df-prb-perfserver>
                       </div>
                     </form>
                   </div>
@@ -406,19 +407,31 @@
                         </select>
                       </div>
                       <div class="form-floating mb-3">
-                        <label class="form-label">Target</label>
-                        <input type="text" class="form-control" df-prb-scantarget>
+                        <div class="row mb-3">
+                          <div class="col-6">
+                            <label class="form-label">Target</label>
+                            <input type="text" class="form-control" placeholder="Enter target for the scan" df-prb-scantarget>
+                          </div>
+                          <div class="col-6 mb-3">
+                            <label class="form-label">Target Interface</label>
+                            <select class="form-select mb-3" df-prb-scantgtifacedef>
+                              <option value="y">yes</option>
+                              <option value="n">no</option>
+                            </select>
+                            <input type="text" class="form-control" placeholder="Enter target interface for scan (optional)" df-prb-scantgtiface>
+                          </div>
+                        </div> 
                       </div>
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-check-label">Limit Fingerprint Scan</label>
                             <select class="form-select" df-prb-scanfplimit>
                               <option value="y">yes</option>
                               <option value="n">no</option>
                             </select>
                           </div>
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-check-label">Reduce Device Identification Scan Noise</label>
                             <select class="form-select" df-prb-scandevidnoise>
                               <option value="y">yes</option>
@@ -429,25 +442,25 @@
                       </div>
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">SNMP scripts</label>
-                            <input type="text" class="form-control" placeholder="scripts" df-prb-scansnmpscripts>
+                            <input type="text" class="form-control" placeholder="Enter SNMP scripts to execute or all for default" df-prb-scansnmpscripts>
                           </div>
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-check-label">SNMP Community</label>
-                            <input type="text" class="form-control" placeholder="community" df-prb-snmpcommunity>
+                            <input type="text" class="form-control" placeholder="Enter SNMP community string" df-prb-snmpcommunity>
                           </div>
                         </div>
                       </div>
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Command Options</label>
-                            <input type="text" class="form-control" df-prb-scanoptions>
+                            <input type="text" class="form-control" placeholder="Enter command options" df-prb-scanoptions>
                           </div>
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Ports to scan</label>
-                            <input type="text" class="form-control" placeholder="ports" df-prb-scanports>
+                            <input type="text" class="form-control" placeholder="Enter ports to scan" df-prb-scanports>
                           </div>
                         </div>
                       </div>
@@ -457,7 +470,7 @@
                     <form method="POST">
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Capture Mode</label>
                             <select class="form-select" df-prb-pcapmode>
                               <option value="pcap_lcl">Local Capture</option>
@@ -465,7 +478,7 @@
                               <option value="pcap_win">Remote Windows Capture</option>
                             </select>
                           </div>
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Use Default Local Interface</label>
                             <select class="form-select mb-3" df-prb-pcaplcliface>
                               <option value="y">yes</option>
@@ -475,17 +488,17 @@
                           </div>
                         </div>
                         <div class="row mb-3">
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Remote Host</label>
                             <input type="text" class="form-control" placeholder="IP of remote host for capture" df-prb-pcaprmhost>
                           </div>
-                          <div class="col-6">
+                          <div class="col-6 mb-3">
                             <label class="form-label">Remote User</label>
                             <input type="text" class="form-control" placeholder="Username for remote host" df-prb-pcaprmuser>
                           </div>
                         </div>
                       </div>
-                      <div class-"form-floating mb-3">
+                      <div class="form-floating mb-3">
                         <div class="row mb-3">
                           <div class="col-6">
                             <label class="form-label">Remote Password</label>
@@ -493,7 +506,7 @@
                           </div>
                           <div class="col-6">
                             <label class="form-label">Remote Interface</label>
-                            <input type="password" class="form-control" placeholder="Caputer interface for remote host" df-prb-pcaprmiface>
+                            <input type="password" class="form-control" placeholder="Capture interface for remote host" df-prb-pcaprmiface>
                           </div>
                         </div>
                       </div>
@@ -513,9 +526,8 @@
                   </div>              
               </div>
               `;
-          const data = { type: 'probe', name: name };
-          editor.addNode(name, 0, 0, pos_x, pos_y, name, data, probe);
-
+          const probe_data = { type: 'probe', name: name };
+          editor.addNode(name, 0, 0, pos_x, pos_y, name, probe_data, probe);
         }
       } else if (typeof name === 'string' && name === 'slack' || name === 'jira' || name === 'email') {
         const alert = `
@@ -526,168 +538,160 @@
             </div>
             `;
             const alert_data = {type: 'alert', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, alert_data, alert );
-
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, alert_data, alert);
       } else {
         switch (name) {
-          case 'scan_arp':
-            const arp = `
+          case 'scans':
+            const scan = `
             <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>ARP Scan</div>
+              <div class="title-box"><i class="fab fa-telegram-plane"></i>Network Scans</div>
               <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-arp-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Interface</label>
-                  <input type="text" class="form-control" df-arp-interface>
-                  <div class="form-text" id="scan-addon4">Enter target interface for scan (Optional, defaults to primary interface on probe).</div>
-                </div>
-              </div>
-            </div>
-              `;
-            const arp_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, arp_data, arp );
-            break;
-          case 'scan_custom':
-            const custom = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Custom Scan</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-custom-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Command Options</label>
-                  <input type="text" class="form-control" df-custom-options>
-                  <div class="form-text" id="scan-addon4">Options for the custom scan command</div>
-                </div>
-              </div>
-            </div>
-              `;
-            const custom_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, custom_data, custom );
-            break;
-          case 'scan_dev_id':
-            const dev_id = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Device ID Scan</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-devid-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Reduce Noise?</label>
-                  <select class="form-select" df-devid-noise>
-                    <option value="y">yes</option>
-                    <option value="n">no</option>
-                  </select>
-                  <div class="form-text" id="scan-addon4">A noisier scan produces more accurate results, but may generate more network traffic and reduce performance.</div>
-                </div>
-              </div>
-            </div>
-              `;
-            const devid_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, devid_data, dev_id );
-            break;
-          case 'scan_dev_fngr':
-            const fingerprint = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Device Fingerprint Scan</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-devfngr-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Limit Scan?</label>
-                  <select class="form-select" df-devfngr-limit>
-                    <option value="y">yes</option>
-                    <option value="n">no</option>
-                  </select>
-                  <div class="form-text" id="scan-addon4">Limiting the scan may reduce network traffic and improve performance, but could result in less accurate results.</div>
-                </div>
-              </div>
-            </div>
-              `;
-            const fingerprint_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, fingerptint_data, fingerprint );
-            break;
-          case 'scan_full':
-            const full = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Full Scan</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-full-target>
-                </div>
-              </div>
-            </div>
-              `;
-            const full_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, full_data, full );
-            break;
-          case 'scan_snmp':
-            const snmp = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>SNMP Scan</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-snmp-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Choose Type</label>
-                  <select class="form-select" df-snmp-type>
-                    <option value="snmp_opn">yes</option>
-                    <option value="snmp_enum">no</option>
-                    <option value="snmp_all">custom</option>
-                  </select>
-                  <div class="form-text" id="scan-addon4">Limiting the scan may reduce network traffic and improve performance, but could result in less accurate results.</div>
-                </div>
-                <div class="form-floating mb-3">
-                  <div class="row">
-                    <div class="col-6">
-                      <label class="form-label">SNMP Scripts</label>
-                      <input type="text" class="form-control" df-snmp-scripts>
-                      <div class="form-text" id="scan-addon4">For SNMP Scan only. Enter comma-separated nmap SNMP scripts to run (optional)</div>
-                    </div>
-                    <div class="col-6">
-                      <label class="form-label">SNMP Community String</label>
-                      <input type="text" class="form-control" df-snmp-community>
-                      <div class="form-text" id="scan-addon4">For SNMP Scan only. Enter the SNMP community string (optional)</div>
+                <form method="POST">
+                  <div class="form-floating mb-3">
+                    <label class="form-label">Select Scan Type</label>
+                    <select class="form-select" aria-label="Select Scan Type" df-scan-type>
+                      <option value="scan_arp">ARP Scan</option>
+                      <option value="scan_custom">Custom Scan</option>
+                      <option value="scan_dev_id">Device Identification Scan</option> 
+                      <option value="scan_dev_fngr">Device Fingerprint Scan</option>
+                      <option value="scan_full">Full Network Scan</option>
+                      <option value="scan_snmp">SNMP Scan</option>
+                      <option value="scan_port">Port Scan</option>
+                    </select>
+                  </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6">
+                        <label class="form-label">Target</label>
+                        <input type="text" class="form-control" placeholder="Enter target for the scan" df-scan-target>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Use Default Interface?</label>
+                        <select class="form-select mb-3" df-scan-useiface>
+                          <option value="y">yes</option>
+                          <option value="n">no</option>
+                        </select>
+                        <input type="text" class="form-control" placeholder="Enter target interface for scan (optional)" df-scan-iface>
+                      </div>
+                    </div> 
+                  </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6 mb-3">
+                        <label class="form-check-label">Limit Device Fingerprinting?</label>
+                        <select class="form-select" df-scan-fplimit>
+                          <option value="y">yes</option>
+                          <option value="n">no</option>
+                        </select>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-check-label">Reduce Device Identification Noise?</label>
+                        <select class="form-select" df-scan-devidnoise>
+                          <option value="y">yes</option>
+                          <option value="n">no</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6 mb-3">
+                        <label class="form-label">SNMP scripts</label>
+                        <input type="text" class="form-control" placeholder="Enter SNMP scripts to execute or all for default" df-scan-snmpscripts>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-check-label">SNMP Community</label>
+                        <input type="text" class="form-control" placeholder="Enter SNMP community string" df-scan-snmpcommunity>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Command Options</label>
+                        <input type="text" class="form-control" placeholder="Enter command options" df-scan-options>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Ports to scan</label>
+                        <input type="text" class="form-control" placeholder="Enter ports to scan" df-scan-ports>
+                      </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
               `;
-            const snmp_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, snmp_data, snmp );
+            const scan_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, scan_data, scan );
             break;
-          case 'scan_port':
-            const port = `
+          case 'pcaps':
+            const pcap = `
             <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Port Scan</div>
+              <div class="title-box"><i class="fab fa-telegram-plane"></i>Packet Capture</div>
               <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Target Subnet/IP</label>
-                  <input type="text" class="form-control" df-port-target>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Ports to scan</label>
-                  <input type="text" class="form-control" df-port-options>
-                  <div class="form-text" id="scan-addon4">For Port Scan only. Enter comma-separated ports to scan (optional)</div>
-                </div>
+                <form method="POST">
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Capture Mode</label>
+                        <select class="form-select" df-pcap-mode>
+                          <option value="pcap_lcl">Local Capture</option>
+                          <option value="pcap_tux">Remote Linux Capture</option>
+                          <option value="pcap_win">Remote Windows Capture</option>
+                        </select>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Use Default Local Interface</label>
+                        <select class="form-select mb-3" df-pcap-useiface>
+                          <option value="y">yes</option>
+                          <option value="n">no</option>
+                        </select>
+                        <input type="text" class="form-control" placeholder="Enter local interface to use." df-pcap-iface>
+                      </div>
+                    </div>    
+                  </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Remote Host</label>
+                        <input type="text" class="form-control" placeholder="Enter IP of remote host for capture" df-pcap-rmhost>
+                      </div>
+                      <div class="col-6 mb-3">
+                        <label class="form-label">Remote User</label>
+                        <input type="text" class="form-control" placeholder="Enter username for remote host" df-pcap-rmuser>
+                      </div>
+                    </div>
+                  </div> 
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6">
+                        <label class="form-label">Remote Password</label>
+                        <input type="password" class="form-control" placeholder="Enter password for remote host" df-pcap-rmpass>
+                      </div>
+                      <div class="col-6">
+                        <label class="form-label">Remote Interface</label>
+                        <input type="password" class="form-control" placeholder="Enter capture interface for remote host" df-pcap-rmiface>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-floating mb-3">
+                    <div class="row mb-3">
+                      <div class="col-6">
+                        <label class="form-label">Capture Count (Linux & Local only)</label>
+                        <input type="number" class="form-control" placeholder="Enter the number of packets to capture" df-pcap-count>
+                      </div>
+                      <div class="col-6">
+                        <label class="form-label">Capture Duration (Windows only)</label>
+                        <input type="number" class="form-control" placeholder="Enter capture duration in seconds" df-pcap-duration>
+                      </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
               `;
-            const port_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, port_data, port );
+            const pcap_data = {type: 'tool', name: name}
+            editor.addNode(name, 0, 0, pos_x, pos_y, name, pcap_data, pcap );
             break;
           case 'test_srvr':
             const server = `
@@ -779,68 +783,6 @@
               `;
             const dns_data = {type: 'tool', name: name}
             editor.addNode(name, 0, 0, pos_x, pos_y, name, dns_data, trcrtdns );
-            break;
-          case 'pcap_lcl':
-            const pcap_lcl = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Local Packet Capture</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Interface</label>
-                  <input type="text" class="form-control" df-pcaplcl-iface>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Capture Count</label>
-                  <input type="number" class="form-control" placeholder="Enter the number of packets to capture" df-pcaplcl-count>
-                  <div class="form-text">Enter the number of packets to capture (optional)</div>
-                </div>
-              </div>
-            </div>
-              `;
-            const pcap_lcl_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, pcap_lcl_data, pcap_lcl );
-            break;
-          case 'pcap_tux':
-          case 'pcap_win':
-            const pcap_rm = `
-            <div>
-              <div class="title-box"><i class="fab fa-telegram-plane"></i>Local Packet Capture</div>
-              <div class="box">
-                <div class="form-floating mb-3">
-                  <label class="form-label">Remote Interface</label>
-                  <input type="text" class="form-control" df-pcaprm-iface>
-                </div>
-                <div class="form-floating mb-3">
-                  <div class="row">
-                    <div class="col-6">
-                      <label class="form-label">Capture Count</label>
-                      <input type="number" class="form-control" placeholder="Enter the number of packets to capture" df-pcaprm-count>
-                      <div class="form-text" id="scan-addon4">Enter the number of packets to capture (optional)</div>
-                    </div>
-                    <div class="col-6">
-                      <label class="form-label">Capture Duration (Windows only)</label>
-                      <input type="number" class="form-control" placeholder="Capture duration in seconds" df-pcaprm-duration>
-                      <div class="form-text" id="scan-addon4">Enter the duration of the capture in seconds (optional, Windows only)</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Remote Host</label>
-                  <input type="text" class="form-control" placeholder="IP of remote host for capture" df-pcaprm-host>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Remote User</label>
-                  <input type="text" class="form-control" placeholder="Username for remote host" df-pcaprm-user>
-                </div>
-                <div class="form-floating mb-3">
-                  <label class="form-label">Remote Password</label>
-                  <input type="password" class="form-control" placeholder="Password for remote host" df-pcaprm-pass>
-                </div>
-              </div>
-            </div>
-              `;
-            const pcap_data = {type: 'tool', name: name}
-            editor.addNode(name, 0, 0, pos_x, pos_y, name, pcap_data, pcap_rm );
             break;
         }
 

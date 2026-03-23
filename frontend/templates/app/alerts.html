@@ -196,39 +196,20 @@
 
 
 <script type="text/javascript">
-document.addEventListener("DOMContentLoaded", () => {
-  const table = document.querySelector("#probeTable");
-  const rows = table.querySelectorAll("tbody tr");
   const mntrURL = "{{ mntr_url }}";
   const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'), {});
-
-  // Handle row selection
-  rows.forEach(row => {
-    row.addEventListener("click", () => {
-      rows.forEach(r => {
-        r.classList.remove("selected");
-        r.style.backgroundColor = "";
-      });
-      row.classList.add("selected");
-      row.style.backgroundColor = "lightcoral";
-    });
-  });
-
   const alertViewButtons = document.querySelectorAll(".alert-details-btn");
   const alertAckButtons = document.querySelectorAll(".alert-acknowledge-btn");
   const alertRslvButtons = document.querySelectorAll(".alert-resolve-btn");
-
   const alertAckInitButton = document.getElementById("alert-ack-init");
   const alertRslvInitButton = document.getElementById("alert-rslv-init");
-
   const alertViewModal = new bootstrap.Modal(document.getElementById('alertViewModal'));
   const alertAckModal = new bootstrap.Modal(document.getElementById('alertAckModal'));
   const alertRslvModal = new bootstrap.Modal(document.getElementById('alertRslvModal'));
 
-  // View Details button handler
   alertViewButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // prevent row click selection (if undesired)
+      e.stopPropagation();
       const name = btn.dataset.name || '';
       const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
@@ -236,7 +217,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const timestamp = btn.dataset.timestamp || '';
       const alert_type = btn.dataset.alert_type || '';
       const id = btn.dataset.id || '';
-      // Fill modal fields
       document.getElementById('alertViewModalLabel').textContent = `Alert Details - ${name} ${alert_type}`;
       document.getElementById('alert-msg').textContent = msg;
       if (alertViewModal) {
@@ -247,10 +227,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Acknowledge button handler
   alertAckButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // prevent row click selection (if undesired)
+      e.stopPropagation(); 
       const name = btn.dataset.name || '';
       const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
@@ -270,10 +249,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Resolve button handler
   alertRslvButtons.forEach(btn => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // prevent row click selection (if undesired)
+      e.stopPropagation(); 
       const name = btn.dataset.name || '';
       const msg = btn.dataset.msg || '';
       const site = btn.dataset.site || '';
@@ -281,7 +259,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const timestamp = btn.dataset.timestamp || '';
       const alert_type = btn.dataset.alert_type || '';
       const id = btn.dataset.id || '';
-      // Fill modal fields
       document.getElementById('alertRslvModalLabel').textContent = `Resolve Alert - ${name} ${alert_type}`;
       document.getElementById('alert-rslv-msg').textContent = `Are you sure you want to resolve the alert: ${msg}`;
       document.getElementById('alert-rslv-init').dataset.id = id;
@@ -362,7 +339,5 @@ document.addEventListener("DOMContentLoaded", () => {
         notificationModal.show();
       }
   });
-
-});
 </script>
 {% endblock %}

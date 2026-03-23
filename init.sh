@@ -1,5 +1,4 @@
 #!/bin/sh
-# SDN MCP Server Docker & iptables initialization for debian/ubuntu systems
 
 firewallconfig() {
   echo "Updating package list and installing persistent tools..."

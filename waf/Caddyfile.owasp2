@@ -94,8 +94,8 @@ umjiniti.baughcl.tech {
     # ---- End Coraza WAF block ----
 
     # WebSocket connections (must be handled before other paths)
-    handle /ws* {
-        reverse_proxy @websockets socketapp:5000 {
+    handle /v1/api/core/channels/probe/heartbeat* {
+        reverse_proxy @websockets backend:5000 {
             # WebSocket specific settings
             header_up Host {host}
             header_up X-Real-IP {remote_host}
@@ -104,9 +104,9 @@ umjiniti.baughcl.tech {
         }
     }
 
-    # Backend API endpoints (socketapp:5000)
-    handle /init* {
-        reverse_proxy socketapp:5000 {
+    handle /v1/api/core/channels/users/ws* {
+        reverse_proxy @websockets backend:5000 {
+            # WebSocket specific settings
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -114,8 +114,9 @@ umjiniti.baughcl.tech {
         }
     }
 
-    handle /enroll* {
-        reverse_proxy socketapp:5000 {
+    # Backend API endpoints (backend:5000)
+    handle /v1/api/core/probe/init* {
+        reverse_proxy backend:5000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -123,8 +124,8 @@ umjiniti.baughcl.tech {
         }
     }
 
-    handle /delete* {
-        reverse_proxy socketapp:5000 {
+    handle /v1/api/core/probe/enroll* {
+        reverse_proxy backend:5000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -132,8 +133,8 @@ umjiniti.baughcl.tech {
         }
     }
 
-    handle /workflow* {
-        reverse_proxy socketapp:5000 {
+    handle /v1/api/core/probes/exec* {
+        reverse_proxy backend:5000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -141,42 +142,131 @@ umjiniti.baughcl.tech {
         }
     }
 
-    # Frontend routes (agentapp:4000)
+    handle /v1/api/core/probes/delete* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/flow/delete* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/flow/save* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/flow/load* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/flow/edit* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/user/resetapi* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/user/createapi* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/user/alerts* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /v1/api/core/user/chats* {
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Frontend routes (frontend:4000)
     handle /login* {
-        reverse_proxy agentapp:4000
+        reverse_proxy frontend:4000
     }
 
     handle /register* {
-        reverse_proxy agentapp:4000
+        reverse_proxy frontend:4000
     }
 
-    handle /agent* {
-        reverse_proxy agentapp:4000
+    handle /smartbot* {
+        reverse_proxy frontend:4000
     }
 
-    handle /settings* {
-        reverse_proxy agentapp:4000
+    handle /dashboard* {
+        reverse_proxy frontend:4000
     }
 
     handle /logout* {
-        reverse_proxy agentapp:4000
+        reverse_proxy frontend:4000
     }
 
-    handle /wkflw* {
-        reverse_proxy agentapp:4000
+    handle /floweditor* {
+        reverse_proxy frontend:4000
     }
 
-    handle /prbs* {
-        reverse_proxy agentapp:4000
+    handle /probe* {
+        reverse_proxy frontend:4000
     }
 
-    handle /netvis* {
-        reverse_proxy agentapp:4000
+    handle /alerts* {
+        reverse_proxy frontend:4000
+    }
+
+    handle /chats* {
+        reverse_proxy frontend:4000
+    }
+
+    handle /probedashboard* {
+        reverse_proxy frontend:4000
     }
 
     # Default handler for root and other frontend routes
     handle /* {
-        reverse_proxy agentapp:4000
+        reverse_proxy frontend:4000
     }
 
     # Error handling

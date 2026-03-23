@@ -118,14 +118,16 @@ services:
       - ip_ban_data:/data
 
   caddy:
-    image: caddy:latest
+    build:
+      context: .
+      dockerfile: waf/Dockerfile.caddy
     container_name: caddy
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./waf/Caddyfile.owasp2:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

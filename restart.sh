@@ -1,5 +1,4 @@
-#!/bin/sh
+#!/bin/
 
 sudo docker-compose down
-
-sudo docker-compose up --build --remove-orphans 
+sudo docker-compose up --build --remove-orphans

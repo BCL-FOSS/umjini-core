@@ -18,7 +18,9 @@
                   <label for="mcp-dropdown" class="form-label">Select Probe:</label>
                   <select id="mcp-dropdown" class="form-select">
                     {% for opt in options.values() %}
-                      <option value="{{ opt.url }}/llm/mcp" data-pid="{{ opt.prb_id }}" data-api="{{ opt.prb_api_key }}">{{ opt.name }}</option>
+                      <option value="{{ opt.url }}/llm/mcp" data-pid="{{ opt.prb_id }}" data-api="{{ opt.prb_api_key }}">
+                        {{ opt.name }}
+                      </option>
                     {% endfor %}
                   </select>
                 </div>

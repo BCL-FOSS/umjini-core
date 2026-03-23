@@ -56,6 +56,10 @@ async def retrieve_user_sess_data(sess_id):
 
     return data, ws_url
 
+async def retrieve_task_results(prb_id, task):
+    task_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:{task}*")
+    return task_results if task_results is not None else {"":""}
+
 async def ip_blocker(auto_ban: bool = False):
     if auto_ban is True:
         now = datetime.now(tz=timezone.utc)
@@ -410,10 +414,6 @@ async def probe(cmp_id, obsc, prb_id):
     probe_data_dict = None
     ifaces = None
     flows = None
-    trace_results = None
-    perf_results = None
-    scan_results = None
-    pcap_results = None
     all_tasks = None
 
     if prb_id != "default":
@@ -421,23 +421,14 @@ async def probe(cmp_id, obsc, prb_id):
         probe_data_dict = next(iter(probe_data.values()))
         ifaces = probe_data_dict.get('iface_list')
         flows = await cl_data_db.get_all_data(match=f"flow:{prb_id}:*")
-        trace_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:trcrt*")
-        perf_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:test_clnt*")
-        scan_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:scan_*")
-        pcap_results = await cl_data_db.get_all_data(match=f"task:result:{prb_id}:pcap_*")
         all_tasks = await cl_data_db.get_all_data(match=f"task:obj:{prb_id}:*")
     else:
         probe_data_dict = {'':''}
         flows = {'':''}
-        trace_results = {'':''}
-        perf_results = {'':''}
-        scan_results = {'':''}
-        pcap_results = {'':''}
-        all_tasks = {'':''}
         ifaces = []
 
     return await render_template("app/probe.html", obsc_key=session.get('url_key') ,
-                                flows=flows, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, ws_url=ws_url, data=user_data, probe_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, all_tasks=all_tasks, probe_data=probe_data_dict, ifaces=ifaces)
+                                flows=flows, cmp_id=cmp_id, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, ws_url=ws_url, data=user_data, probe_id=prb_id, all_tasks=all_tasks, probe_data=probe_data_dict, ifaces=ifaces)
 
 @app.route('/alerts', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default', 'alert_type': 'default'}, methods=['GET', 'POST'])
 @app.route("/alerts/<string:cmp_id>/<string:obsc>/<string:prb_id>/<string:alert_type>", methods=['GET', 'POST'])
@@ -485,9 +476,41 @@ async def probedashboard(cmp_id, obsc, prb_id):
     session["csrf_ready"] = True
     user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
 
+    trace_results = None
+    perf_results = None
+    scan_results = None
+    pcap_results = None
+    alerts = None
+    devices = None
+    tux_count = 0
+    win_count = 0
+    android_count = 0
+    iphone_count = 0
+
+    trace_results = await retrieve_task_results(prb_id, "trcrt")
+    perf_results = await retrieve_task_results(prb_id, "test_clnt")
+    scan_results = await retrieve_task_results(prb_id, "scan")
+    pcap_results = await retrieve_task_results(prb_id, "pcap")
+    alerts = await cl_data_db.get_all_data(match=f"alert:{prb_id}:*")
+    devices = await cl_data_db.get_all_data(match=f"netmap:result:{prb_id}:devices")
+
+    if trace_results is None:
+        trace_results = {'':''}
+    if perf_results is None:
+        perf_results = {'':''}
+    if scan_results is None:
+        scan_results = {'':''}
+    if pcap_results is None:
+        pcap_results = {'':''}
+    if alerts is None:
+        alerts = {'':''}
+    if devices is None:
+        devices = {'':''}
+
+    ws_prb_url = f"wss://{mntr_url}/v1/api/core/channels/probe/heartbeat/{prb_id}?sess_id={cur_usr_id}"
 
     return await render_template("app/probedashboard.html", obsc_key=session.get('url_key') ,
-                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, prb_id=prb_id)
+                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, prb_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, alerts=alerts, devices=devices, ws_prb_url=ws_prb_url, tux_count=tux_count, win_count=win_count, android_count=android_count, iphone_count=iphone_count)
 
 @app.errorhandler(CSRFError)
 async def handle_csrf_error(e):

@@ -235,7 +235,7 @@
                   <div class="input-group mb-3">
                     <select id="trace-type-select" class="form-select" aria-label="Select Trace Type" aria-placeholder="Choose Traceroute Results to View">
                       {% for trace in trace_results.values() %}
-                      <option value="{{ trace.id }}">{{ trace.prb_name }} - {{ trace.task_type }} - {{ trace.timestamp }}</option>
+                      <option value="{{ trace.id }}" data-output="{{ trace.task_output }}">{{ trace.timestamp }}</option>
                       {% endfor %}
                     </select>
                     <button class="btn btn-outline-secondary ms-2" id="view-trace-btn">View Trace</button>
@@ -255,7 +255,7 @@
                   <div class="input-group mb-3">
                     <select id="perf-type-select" class="form-select" aria-label="Select Performance Test Type" aria-placeholder="Choose Performance Test Results to View">
                       {% for perf in perf_results.values() %}
-                      <option value="{{ perf.id }}">{{ perf.prb_name }} - {{ perf.task_type }} - {{ perf.timestamp }}</option>
+                      <option value="{{ perf.id }}" data-output="{{ perf.task_output }}">{{ perf.timestamp }}</option>
                       {% endfor %}
                     </select>
                     <button class="btn btn-outline-secondary ms-2" id="view-perf-btn">View Performance Test</button>
@@ -275,7 +275,7 @@
                   <div class="input-group mb-3">  
                     <select id="scan-type-select" class="form-select" aria-label="Select Scan Type" aria-placeholder="Choose Scan Results to View">
                       {% for scan in scan_results.values() %}
-                      <option value="{{ scan.id }}">{{ scan.prb_name }} - {{ scan.task_type }} - {{ scan.timestamp }}</option>
+                      <option value="{{ scan.id }}" data-output="{{ scan.task_output }}">{{ scan.timestamp }}</option>
                       {% endfor %}
                     </select>
                     <button class="btn btn-outline-secondary ms-2" id="view-scan-btn">View Scan</button>
@@ -295,7 +295,7 @@
                   <div class="input-group mb-3">  
                     <select id="pcap-type-select" class="form-select" aria-label="Select Packet Capture to View" aria-placeholder="Choose Packet Capture Results to View">
                       {% for pcap in pcap_results.values() %}
-                      <option value="{{ pcap.id }}">{{ pcap.prb_name }} - {{ pcap.task_type }} - {{ pcap.timestamp }}</option>
+                      <option value="{{ pcap.id }}" data-output="{{ pcap.task_output }}">{{ pcap.timestamp }}</option>
                       {% endfor %}
                     </select>
                     <button class="btn btn-outline-secondary ms-2" id="view-pcap-btn">View Packet Capture</button>
@@ -365,21 +365,21 @@
   let probeWS = new WebSocket(wsPrbURLMon);
   const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
 
-  function connectWebSocket() {
+  function connectProbeWebSocket() {
 
-      probeWS.onopen = () => {
+      probeWS.onopen = async () => {
         console.log("WebSocket connected");
-        probeWS.onerror = (err) => {
-          console.error("WebSocket error:", err);
-          clearInterval(intervalId);
+        await visualizeNetworkScan(JSON.parse("{{ devices | tojson }}"), "network-map");
 
+        probeWS.onerror = async (err) => {
+          console.error("WebSocket error:", err);
+          await visualizeNetworkScan(JSON.parse("{{ devices | tojson }}"), "network-map");
         };
 
         probeWS.onclose = async (event) => {
           console.warn("WebSocket closed:", event.code, event.reason);
-          clearInterval(intervalId);
+          await visualizeNetworkScan(JSON.parse("{{ devices | tojson }}"), "network-map");
         };
-
       };
 
       probeWS.onmessage = async (event) => {
@@ -390,25 +390,22 @@
           if (data.user_id === curUsrID || data.usr_id === curUsrID) {
             switch (data.map_type) {
               case "trace":
-             
+                await visualizeTraceroute(data.map);
                 break;
-              case "perf_test":
-             
+              case "perf":
+                await visualizePerformanceTest(data.map);
                 break;
               case "scan":
-           
+                await visualizeNetworkScan(data.map, "network-scan");
                 break;
               case "pcap":
-            
+                await visualizePacketCapture(data.map);
                 break;
             }
           }
 
-          if (data.map_type === "full_scan"){
-
-            await visualizeNetworkScan(data.map)
-
-        
+          if (data.map_type === "full"){
+            await visualizeNetworkScan(data.map, "network-map");
           }
 
         } catch (err) {
@@ -416,10 +413,41 @@
         }
       };
   }
+
+  connectProbeWebSocket();
+
   const viewTraceButton = document.getElementById('view-trace-button');
   const viewPerfButton = document.getElementById('view-perf-button');
   const viewScanButton = document.getElementById('view-scan-button');
   const viewPcapButton = document.getElementById('view-pcap-button');
+
+  viewTraceButton.addEventListener('click', async () => {
+    const select = document.getElementById('trace-type-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const traceData = JSON.parse(selectedOption.getAttribute('data-output'));
+    await visualizeTraceroute(traceData);
+  });
+
+  viewPerfButton.addEventListener('click', async () => {
+    const select = document.getElementById('perf-type-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const perfData = JSON.parse(selectedOption.getAttribute('data-output'));
+    await visualizePerformanceTest(perfData);
+  });
+
+  viewScanButton.addEventListener('click', async () => {
+    const select = document.getElementById('scan-type-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const scanData = JSON.parse(selectedOption.getAttribute('data-output'));
+    await visualizeNetworkScan(scanData, "network-scan");
+  });
+
+  viewPcapButton.addEventListener('click', async () => {
+    const select = document.getElementById('pcap-type-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const pcapData = JSON.parse(selectedOption.getAttribute('data-output'));
+    await visualizePacketCapture(pcapData);
+  });
   
 </script>
 

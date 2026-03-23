@@ -738,8 +738,17 @@ async def _receive() -> None:
                         await broker.publish(message=json.dumps(message))
 
                 case 'prb_netmap_rslt':
-                    message['id'] = f"netmap:result:{message['prb_id']}:{message['timestamp']}"
-                    if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
+                    message['id'] = f"netmap:result:{message['prb_id']}"
+                    if await cl_data_db.get_all_data(match=f"{message['id']}:devices", cnfrm=True) is True:
+                        if await cl_data_db.del_obj(key=f"{message['id']}:devices") is not None:
+                            logger.info(f"Existing network map device data deleted successfully with id: {message['id']}:devices")
+                            if await cl_data_db.upload_db_data(id=f"{message['id']}:devices", data=message['map']) > 0:
+                                logger.info(f"Network map device data uploaded successfully with id: {message['id']}:devices")
+                    else:
+                        if await cl_data_db.upload_db_data(id=f"{message['id']}:devices", data=message['map']) > 0:
+                            logger.info(f"Network map device data uploaded successfully with id: {message['id']}:devices")
+
+                    if await cl_data_db.upload_db_data(id=f"{message['id']}:{message['timestamp']}", data=message) > 0:
                         logger.info(f"Network map result data uploaded successfully with id: {message['id']}")
                     await send_processed_data_to_probe(data_to_send=message)
 
@@ -1052,7 +1061,7 @@ async def ws():
                 pass
 
 @app.route('/v1/api/core/probe/init', methods=['GET'])
-async def init():
+async def prbinit():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
     usr = request.args.get('usr')
 
@@ -1106,7 +1115,7 @@ async def init():
         return jsonify({'error': 'Error occurred'}), 400
     
 @app.route("/v1/api/core/probe/enroll", methods=['POST'])
-async def enroll():
+async def prbenroll():
     logger.info(request.args)
 
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
@@ -1137,7 +1146,7 @@ async def enroll():
     
 @app.route('/v1/api/core/probes/exec/<string:prb_id>', methods=['POST'])
 @rate_exempt
-async def exec(prb_id):
+async def prbexec(prb_id):
     logger.info(request.args)
 
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
@@ -1187,7 +1196,7 @@ async def exec(prb_id):
             return jsonify({'error': exec_resp_data}), 400
     
 @app.route('/v1/api/core/probes/delete', methods=['POST'])
-async def delete():
+async def prbdelete():
     jwt_token = request.cookies.get("api_access_token")
     usr = request.args.get('usr')
 
@@ -1459,7 +1468,7 @@ async def alerts():
 
 @app.route('/v1/api/core/user/chats', defaults={'prb_id': 'default','usr': 'default'}, methods=['GET', 'POST'])            
 @app.route('/v1/api/core/user/chats/<string:prb_id>/<string:usr>', methods=['GET', 'POST'])
-async def user_chats(prb_id, usr):
+async def chats(prb_id, usr):
     jwt_token = request.cookies.get("access_token")
     sess_id = request.args.get('sess_id')   
 

@@ -231,7 +231,7 @@ async function visualizePerformanceTest(data) {
 }
 
 // Parse and visualize network scan results (from previous implementation)
-async function visualizeNetworkScan(data) {
+async function visualizeNetworkScan(data, mapContainerId) {
   networkDataSets.scan.nodes.clear();
   networkDataSets.scan.edges.clear();
 
@@ -296,7 +296,7 @@ async function visualizeNetworkScan(data) {
   });
 
   if (!networkVisualizers.scan) {
-    networkVisualizers.scan = initializeNetwork('scan', 'network-scan');
+    networkVisualizers.scan = initializeNetwork('scan', mapContainerId);
   }
 
   detectNetworkAlerts(deviceArray, 'scan-alerts');

@@ -84,3 +84,47 @@ class Util:
         
         return text_before, text_after
     
+    def round_down_to_5min(dt: datetime) -> datetime:
+        """Round dt down (floor) to the nearest 5-minute boundary."""
+        if dt is None:
+            return dt
+        minute = (dt.minute // 5) * 5
+        return dt.replace(minute=minute, second=0, microsecond=0)
+
+    def round_up_to_5min(dt: datetime) -> datetime:
+        """Round dt up (ceiling) to the next 5-minute boundary (if already on boundary, keep)."""
+        if dt is None:
+            return dt
+        # If already exact boundary, return as-is (but zero seconds/microseconds)
+        if dt.second == 0 and dt.microsecond == 0 and (dt.minute % 5) == 0:
+            return dt.replace(second=0, microsecond=0)
+        # Compute minutes to add to reach next multiple of 5
+        remainder = dt.minute % 5
+        add_minutes = 5 - remainder
+        # Normalize to next boundary with seconds/microseconds cleared
+        # Use a base truncated to the minute first
+        base = dt.replace(second=0, microsecond=0)
+        res = base + timedelta(minutes=add_minutes)
+        return res.replace(second=0, microsecond=0)
+    
+    def round_down_to_30sec(dt: datetime) -> datetime:
+        """Round dt down (floor) to the nearest 30-second boundary."""
+        if dt is None:
+            return dt
+        # Determine the 30-second bucket: 0-29 => 0, 30-59 => 30
+        sec = (dt.second // 30) * 30
+        return dt.replace(second=sec, microsecond=0)
+
+    def round_up_to_30sec(dt: datetime) -> datetime:
+        """Round dt up (ceiling) to the next 30-second boundary (if already on boundary, keep)."""
+        if dt is None:
+            return dt
+        # If already exact boundary, return as-is (but zero microseconds)
+        if (dt.second % 30) == 0 and dt.microsecond == 0:
+            return dt.replace(microsecond=0)
+        remainder = dt.second % 30
+        add_seconds = 30 - remainder
+        base = dt.replace(microsecond=0)
+        res = base + timedelta(seconds=add_seconds)
+        return res.replace(microsecond=0)
+    

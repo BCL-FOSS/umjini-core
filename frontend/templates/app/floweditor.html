@@ -110,7 +110,7 @@
     if (flowID !== "default") {
       const id = flowID;
       const payload = { id: id };    
-      const resp = await fetch(`https://${mntrURL}/v1/api/core/flow/load?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)})
+      const resp = await fetch(`https://${mntrURL}/v1/api/core/probes/exec/${prbID}/flows/load?usr={{ cur_usr }}&sess_id={{ cur_usr_id }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)})
       const j = await resp.json()
 
       if (resp.ok) {
@@ -245,11 +245,11 @@
 
         if (flowID !== "default") {
             const payload = {flow: flow, id: flowID, name: savename}
-            resp = await fetch(`https://${mntrURL}/v1/api/core/flow/edit?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
+            resp = await fetch(`https://${mntrURL}/v1/api/core/probes/exec/${prbID}/flows/edit?usr={{ cur_usr }}&sess_id={{ cur_usr_id }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
     
         } else {
             const payload = {flow: flow, probe: prbID, name: savename}
-            resp = await fetch(`https://${mntrURL}/v1/api/core/flow/save?usr={{ cur_usr }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
+            resp = await fetch(`https://${mntrURL}/v1/api/core/probes/exec/${prbID}/flows/save?usr={{ cur_usr }}&sess_id={{ cur_usr_id }}`, {method:'POST', credentials: "same-origin", body:JSON.stringify(payload)});
         }
           
         if (resp.ok) {
@@ -397,13 +397,12 @@
                       <div class="form-floating mb-3">
                         <label class="form-label">Select Scan Type</label>
                         <select class="form-select" aria-label="Select Scan Type" df-prb-scantype>
-                          <option value="scan_arp">ARP Scan</option>
-                          <option value="scan_custom">Custom Scan</option>
-                          <option value="scan_dev_id">Device Identification Scan</option> 
-                          <option value="scan_dev_fngr">Device Fingerprint Scan</option>
-                          <option value="scan_full">Full Network Scan</option>
-                          <option value="scan_snmp">SNMP Scan</option>
-                          <option value="scan_port">Port Scan</option>
+                          <option value="scan_vuln">Vulnerability</option>
+                          <option value="scan_cust">Custom</option>
+                          <option value="scan_os">OS</option> 
+                          <option value="scan_srvc">Service</option>
+                          <option value="scan_map">Discovery</option>
+                          <option value="scan_snmp">SNMP</option>
                         </select>
                       </div>
                       <div class="form-floating mb-3">
@@ -418,6 +417,7 @@
                               <option value="y">yes</option>
                               <option value="n">no</option>
                             </select>
+                            <br>
                             <input type="text" class="form-control" placeholder="Enter target interface for scan (optional)" df-prb-scantgtiface>
                           </div>
                         </div> 
@@ -425,26 +425,8 @@
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
                           <div class="col-6 mb-3">
-                            <label class="form-check-label">Limit Fingerprint Scan</label>
-                            <select class="form-select" df-prb-scanfplimit>
-                              <option value="y">yes</option>
-                              <option value="n">no</option>
-                            </select>
-                          </div>
-                          <div class="col-6 mb-3">
-                            <label class="form-check-label">Reduce Device Identification Scan Noise</label>
-                            <select class="form-select" df-prb-scandevidnoise>
-                              <option value="y">yes</option>
-                              <option value="n">no</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="form-floating mb-3">
-                        <div class="row mb-3">
-                          <div class="col-6 mb-3">
                             <label class="form-label">SNMP scripts</label>
-                            <input type="text" class="form-control" placeholder="Enter SNMP scripts to execute or all for default" df-prb-scansnmpscripts>
+                            <input type="text" class="form-control" placeholder="Enter comma separated list of nmap SNMP scripts or 'all' for full scan" df-prb-scansnmpscripts>
                           </div>
                           <div class="col-6 mb-3">
                             <label class="form-check-label">SNMP Community</label>
@@ -455,12 +437,24 @@
                       <div class="form-floating mb-3">
                         <div class="row mb-3">
                           <div class="col-6 mb-3">
+                            <label class="form-check-label">Vulnerability Minimum Score</label>
+                            <input type="number" class="form-control" placeholder="Enter minimum vulnerability score to report (0-10)" df-prb-scanvulnscore>
+                          </div>
+                          <div class="col-6 mb-3">
                             <label class="form-label">Command Options</label>
                             <input type="text" class="form-control" placeholder="Enter command options" df-prb-scanoptions>
                           </div>
+                        </div>
+                      </div>
+                      <div class="form-floating mb-3">
+                        <div class="row mb-3">
                           <div class="col-6 mb-3">
-                            <label class="form-label">Ports to scan</label>
-                            <input type="text" class="form-control" placeholder="Enter ports to scan" df-prb-scanports>
+                            <label class="form-label">Discovery TCP SYN Ports</label>
+                            <input type="text" class="form-control" placeholder="Enter comma separated list of TCP SYN ports to scan during discovery" df-prb-scantcpsyn>
+                          </div>
+                          <div class="col-6 mb-3">
+                            <label class="form-label">Discovery TCP ACK Ports</label>
+                            <input type="text" class="form-control" placeholder="Enter comma separated list of TCP ACK ports to scan during discovery" df-prb-scantcpack>
                           </div>
                         </div>
                       </div>

@@ -27,7 +27,6 @@ from datetime import datetime, timedelta, timezone
 from onetimesecret import OneTimeSecretCli
 from ai.smartbot.utils.EmailSenderHandler import EmailSenderHandler
 import uuid
-import ast
 
 cl_sess_db = RedisDB(hostname=os.environ.get('CLIENT_SESS_DB'), 
                                                     port=os.environ.get('CLIENT_SESS_DB_PORT'))
@@ -85,52 +84,6 @@ def load_network_diagnostic_prompt() -> str:
 NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD = load_network_diagnostic_prompt()
 
 logger.info(f"Network diagnostic system prompt loaded successfully.\n {NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD[:500]}...")
-
-# Helper functions to quantize datetimes to 5-minute increments
-def round_down_to_5min(dt: datetime) -> datetime:
-    """Round dt down (floor) to the nearest 5-minute boundary."""
-    if dt is None:
-        return dt
-    minute = (dt.minute // 5) * 5
-    return dt.replace(minute=minute, second=0, microsecond=0)
-
-def round_up_to_5min(dt: datetime) -> datetime:
-    """Round dt up (ceiling) to the next 5-minute boundary (if already on boundary, keep)."""
-    if dt is None:
-        return dt
-    # If already exact boundary, return as-is (but zero seconds/microseconds)
-    if dt.second == 0 and dt.microsecond == 0 and (dt.minute % 5) == 0:
-        return dt.replace(second=0, microsecond=0)
-    # Compute minutes to add to reach next multiple of 5
-    remainder = dt.minute % 5
-    add_minutes = 5 - remainder
-    # Normalize to next boundary with seconds/microseconds cleared
-    # Use a base truncated to the minute first
-    base = dt.replace(second=0, microsecond=0)
-    res = base + timedelta(minutes=add_minutes)
-    return res.replace(second=0, microsecond=0)
-
-# Helper functions to quantize datetimes to 30-second increments
-def round_down_to_30sec(dt: datetime) -> datetime:
-    """Round dt down (floor) to the nearest 30-second boundary."""
-    if dt is None:
-        return dt
-    # Determine the 30-second bucket: 0-29 => 0, 30-59 => 30
-    sec = (dt.second // 30) * 30
-    return dt.replace(second=sec, microsecond=0)
-
-def round_up_to_30sec(dt: datetime) -> datetime:
-    """Round dt up (ceiling) to the next 30-second boundary (if already on boundary, keep)."""
-    if dt is None:
-        return dt
-    # If already exact boundary, return as-is (but zero microseconds)
-    if (dt.second % 30) == 0 and dt.microsecond == 0:
-        return dt.replace(microsecond=0)
-    remainder = dt.second % 30
-    add_seconds = 30 - remainder
-    base = dt.replace(microsecond=0)
-    res = base + timedelta(seconds=add_seconds)
-    return res.replace(microsecond=0)
 
 async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False):
     if auto_ban is True:
@@ -272,7 +225,7 @@ async def prb_jwt_verification(usr: str, api_key: str, jwt_token: str, request: 
     
 async def send_processed_data_to_probe(data_to_send):
     if connected_probes.get(data_to_send["prb_id"]):
-                            await connected_probes.get(data_to_send["prb_id"]).get("broker").publish(message=json.dumps(data_to_send))
+        await connected_probes.get(data_to_send["prb_id"]).get("broker").publish(message=json.dumps(data_to_send))
     else:
         probe_conn_error = {
             'alert_type': 'outage',
@@ -380,16 +333,52 @@ async def smartbot_processing(payload: dict, message: dict, headers: dict):
 
             await send_processed_data_to_probe(data_to_send=smartbot_alert)
 
-async def _receive() -> None:
+async def smartbot_data_generator(message: dict):
+    headers = {'content-type': 'application/json'}
+
+    task_msg = (
+                        f"{message['tool_output']}"
+                        + "\n\n"
+                        f"{message['prompt']}"
+                    )
+                                    
+    analysis_instructions = (
+                        NET_ADMIN_INSTRUCTIONS
+                        + "\n\n"
+                        + ANALYSIS_INSTRUCTIONS
+                        + "\n\n"
+                        + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
+                    )
+
+    task_payload = {
+                        'model': os.environ.get('OLLAMA_MODEL'),
+                        'tools':[
+                            {
+                                "type": "mcp",
+                                "server_label": "netadmin_mcp_server",
+                                "server_url": f"{message['url']}",
+                                "require_approval": "never",
+                                    },
+                                ],
+                        'usr_input': task_msg,
+                        'instructions': analysis_instructions,
+                        'api_key': message['prb_api_key']
+                    }
+
+    if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
+                        task_payload['tool_instructions'] = connected_probes[message['prb_id']]['tool_instructions']
+
+    await smartbot_processing(payload=task_payload, message=message, headers=headers)
+
+async def _receive_user() -> None:
     while True:
         message = await websocket.receive()
         logger.debug(message)
         message = json.loads(message)
         action=message['act']
-
         if action:
             match action:
-                case 'smartbot_chat':
+                case 'chat':
                     usr_msg_data = {
                         "from": message["from"],
                         "msg": message["msg"],
@@ -420,8 +409,7 @@ async def _receive() -> None:
                         if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
                             saved_tools_instructions = connected_probes.get(message['prb_id']).get('tool_instructions')
 
-                        async with httpx.AsyncClient() as client:
-                            payload = {
+                        payload = {
                                 'model': os.environ.get('OLLAMA_MODEL'),
                                 'tools':[
                                         {
@@ -437,17 +425,12 @@ async def _receive() -> None:
                                 'user': message['usr'],
                             }
 
+                        async with httpx.AsyncClient() as client:
                             if saved_tools_instructions != "":
                                 payload['tool_instructions'] = saved_tools_instructions
 
                             headers = {'content-type': 'application/json'}
-                            
                             tool_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-                            # Extract agent response
-                            logger.info(tool_resp)
-                            logger.info(tool_resp.json())
-
                             tool_msg = tool_resp.json()  
 
                             if saved_tools_instructions == "":
@@ -464,7 +447,6 @@ async def _receive() -> None:
                                     "url": message["url"],
                                     "usr_id": message['usr_id']
                                 }
-
                                 await broker.publish(message=json.dumps(err_msg_data))
                             else:
                                 output_message = ""
@@ -498,31 +480,14 @@ async def _receive() -> None:
                                         + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
                                     )
 
-                                    analysis_payload = {
-                                        'model': os.environ.get('OLLAMA_MODEL'),
-                                        'tools':[
-                                                {
-                                                    "type": "mcp",
-                                                    "server_label": "netadmin_mcp_server",
-                                                    "server_url": f"{message['url']}",
-                                                    "require_approval": "never",
-                                                },
-                                            ],
-                                        'usr_input': f"{analysis_msg}",
-                                        'instructions': analysis_instructions,
-                                        'api_key': api,
-                                        'user': message['usr']
-                                    }
-
+                                    payload['usr_input'] = analysis_msg
+                                    payload['instructions'] = analysis_instructions
+                                    analysis_payload = payload.copy()
                                     if connected_probes.get(message['prb_id']).get('tool_instructions') != "":
                                         analysis_payload['tool_instructions'] = connected_probes.get(message['prb_id']).get('tool_instructions')
 
                                     smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=analysis_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-                                    logger.info(smmry_resp.json())
-
                                     summary_msg = smmry_resp.json()
-
                                     final_output = ""
                                     final_output+=f'{output_message}\n\n'
                                     final_output+=summary_msg['output_text']
@@ -533,9 +498,7 @@ async def _receive() -> None:
                                     agent_msg_data['query_type'] = 'tool'      
                                     
                                 time_stamp = datetime.now(timezone.utc).isoformat()
-
                                 chat_data_id = f"chat:{message['prb_id']}:{message['usr']}:{time_stamp}"
-
                                 chat_data = {'id': chat_data_id,
                                             'usr_msg': message["msg"],
                                             'agent_msg': final_output,
@@ -545,7 +508,6 @@ async def _receive() -> None:
                                             'tool_calls': tool_msg['tool_calls'],
                                             'tool_outputs': tool_msg['tool_outputs'],
                                             }
-                                
                                 if await cl_data_db.upload_db_data(id=chat_data_id, data=chat_data) > 0:
                                     logger.info(f"Chat data uploaded successfully with id: {chat_data_id}")
                                 
@@ -555,170 +517,52 @@ async def _receive() -> None:
                                 agent_msg_data['usr_id'] = message['usr_id']
                                 agent_msg_data['prb_id'] = message['prb_id']
                                 agent_msg_data['final_output'] = True
-                        
                                 await broker.publish(message=json.dumps(agent_msg_data))
 
-                case 'smartbot_flow':
+async def _receive_probe() -> None:
+    while True:
+        message = await websocket.receive()
+        logger.debug(message)
+        message = json.loads(message)
+        action=message['act']
+        if action:
+            match action:
+                case 'smartbot':
                     logger.info(f"Received flow LLM message: {message}.")
-                    headers = {'content-type': 'application/json'}
-
-                    flow_msg = (
-                        f"{message['tool_output']}"
-                        + "\n\n"
-                        f"{message['prompt']}"
-                    )
-                                    
-                    analysis_instructions = (
-                        NET_ADMIN_INSTRUCTIONS
-                        + "\n\n"
-                        + ANALYSIS_INSTRUCTIONS
-                        + "\n\n"
-                        + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
-                    )
-
-                    flow_payload = {
-                        'model': os.environ.get('OLLAMA_MODEL'),
-                        'tools':[
-                            {
-                                "type": "mcp",
-                                "server_label": "netadmin_mcp_server",
-                                "server_url": f"{message['url']}",
-                                "require_approval": "never",
-                                    },
-                                ],
-                        'usr_input': flow_msg,
-                        'instructions': analysis_instructions,
-                        'api_key': message['prb_api_key'],
-                        
-                    }
-
-                    if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
-                        flow_payload['tool_instructions'] = connected_probes[message['prb_id']]['tool_instructions']
-
-                    await smartbot_processing(payload=flow_payload, message=message, headers=headers)
-
-                case 'smartbot_task':
-                    logger.info(f"Received flow LLM message: {message}.")
-                    headers = {'content-type': 'application/json'}
-
-                    task_msg = (
-                        f"{message['tool_output']}"
-                        + "\n\n"
-                        f"{message['prompt']}"
-                    )
-                                    
-                    analysis_instructions = (
-                        NET_ADMIN_INSTRUCTIONS
-                        + "\n\n"
-                        + ANALYSIS_INSTRUCTIONS
-                        + "\n\n"
-                        + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
-                    )
-
-                    task_payload = {
-                        'model': os.environ.get('OLLAMA_MODEL'),
-                        'tools':[
-                            {
-                                "type": "mcp",
-                                "server_label": "netadmin_mcp_server",
-                                "server_url": f"{message['url']}",
-                                "require_approval": "never",
-                                    },
-                                ],
-                        'usr_input': task_msg,
-                        'instructions': analysis_instructions,
-                        'api_key': message['prb_api_key']
-                    }
-
-                    if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
-                        task_payload['tool_instructions'] = connected_probes[message['prb_id']]['tool_instructions']
-
-                    await smartbot_processing(payload=task_payload, message=message, headers=headers)
-
-                case 'ping':
-                    logger.debug(f"Received ping message: {message}")
-
-                    await cl_sess_db.connect_db()
-
-                    if await cl_sess_db.get_all_data(match=f'{message["sess_id"]}', cnfrm=True) is False:
-                        pass  # Session does not exist, ignore ping
-                    
-                    global auth_ping_counter
-                    
-                    # Check if we have an expiry entry for this session and validate it
-                    now = datetime.now(tz=timezone.utc)
-
-                    if message["sess_id"] in auth_ping_counter:
-                        entry = auth_ping_counter.get(message["sess_id"])
-                        exp = entry.get('exp')
-
-                        # If the stored expiry is still in the future, refresh it (sliding window)
-                        if exp and now <= exp:
-                            new_exp = round_up_to_5min(now + timedelta(minutes=5))
-                            entry['exp'] = new_exp
-                            auth_ping_counter[message["sess_id"]] = entry
-
-                            logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
-
-                    else:
-                        pass
-
+                    await smartbot_data_generator(message=message)
                 case 'heart_beat':
                     logger.debug(f"Received probe {message['sess_id']} heartbeat: {message}")
-
                     global connected_probes
-
                     now = datetime.now(tz=timezone.utc)
-
                     if message["sess_id"] in connected_probes:
                         entry = connected_probes.get(message["sess_id"])
                         exp = entry.get('exp')
-
-                        # If the stored expiry is still in the future, refresh it (sliding window)
                         if exp and now <= exp:
-                            new_exp = round_up_to_30sec(now + timedelta(seconds=30))
+                            new_exp = util_obj.round_up_to_30sec(now + timedelta(seconds=30))
                             entry['exp'] = new_exp
                             connected_probes[message["sess_id"]] = entry
-
                             logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
-
                     else:
                         pass
-
-                case 'prb_task_init':
-                    logger.info(f"Received probe action message: {message}.")
-
-                    message.pop('act')
-
-                    await send_processed_data_to_probe(data_to_send=message)
-
-                case "prb_task_cnfrm":  
+                case "task_cnfrm":  
                     logger.info(f"Received probe task confirmation message: {message}.")
-
                     match message.get('storage_opt'):
                         case 'new':
-
                             message['timestamp'] = datetime.now(tz=timezone.utc).isoformat()
-                            
                             task_id = f"task:obj:{message['job_type']}:{message['prb_id']}:{message['timestamp']}"
-
                             message['id'] = task_id
-                            
                             if await cl_data_db.upload_db_data(id=task_id, data=message) > 0:
                                 logger.info(f"Task data uploaded successfully with id: {task_id}")
                         case 'updt':
                             if await cl_data_db.upload_db_data(id=message['id'], data=message) > 0:
                                 logger.info(f"Task data updated successfully with id: {message['id']}")
-
                         case 'del':
                             result = await cl_data_db.del_obj(key=message['id'])
                             if result is not None:
                                 logger.info(f"Task data deleted successfully with id: {message['id']}")
-
                     if message['job_type'] == 'flow':
                         if await cl_data_db.upload_db_data(id=message['flow_id'], data={'comment': message['comment']}) > 0:
                             logger.info(f"Flow comment updated successfully with id: {message['flow_id']}")
-
                     message.pop('act')
                     message.pop('storage_opt')
                     message['alert_type'] = 'task_config_confirmation'
@@ -726,8 +570,7 @@ async def _receive() -> None:
 
                     await broker.publish(message=json.dumps(message))
 
-                case "prb_task_rslt":
-                    final_output = ""
+                case "task_rslt":
                     message['alert_type'] = 'task_result'
                     message['msg'] = f"Task '{message['task_type']}' executed at probe '{message['prb_id']}' with output: {message['task_output']}"
                     task_result_id = f"task:result:{message['prb_id']}:{message['task_type']}:{message['timestamp']}"
@@ -737,7 +580,7 @@ async def _receive() -> None:
                         logger.info(f"Task result data uploaded successfully with id: {task_result_id}")
                         await broker.publish(message=json.dumps(message))
 
-                case 'prb_netmap_rslt':
+                case 'netmap_rslt':
                     message['id'] = f"netmap:result:{message['prb_id']}"
                     if await cl_data_db.get_all_data(match=f"{message['id']}:devices", cnfrm=True) is True:
                         if await cl_data_db.del_obj(key=f"{message['id']}:devices") is not None:
@@ -761,19 +604,13 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
     logger.info(f"Starting session watchdog for {sess_id}")
     while True:
         try:
-            USER = False
             PROBE = False
-
-            if auth_ping_counter.get(sess_id):
-                entry = auth_ping_counter.get(sess_id)
-                USER = True
-
             if connected_probes.get(sess_id):
                 entry = connected_probes.get(sess_id)
                 PROBE = True
 
             now = datetime.now(tz=timezone.utc)
-                
+
             if not entry:
                 # No entry yet (client hasn't pinged). We still want to expire after specified time from connection start,
                 # but the connection code initializes an entry at connect. So just sleep and continue.
@@ -785,39 +622,15 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                 await asyncio.sleep(check_interval)
                 continue
 
-            # Quantize times to avoid small-drift expirations.
-            if USER is True:
-                now_quant = round_down_to_5min(now)
-                exp_quant = round_up_to_5min(exp)
-
             if PROBE is True:
-                now_quant = round_down_to_30sec(now)
-                exp_quant = round_up_to_30sec(exp)
+                now_quant = util_obj.round_down_to_30sec(now)
+                exp_quant = util_obj.round_up_to_30sec(exp)
 
             #logger.debug(f"Session {sess_id} now_quant={now_quant} exp_quant={exp_quant} (raw now={now} raw exp={exp})")
 
             # Expiration occurred
             if now_quant > exp_quant:
                 logger.info(f"Session {sess_id} expired at {exp_quant} (now_quant={now_quant}), logging out and closing ws")
-
-                if USER is True:
-                    # Remove tracking
-                    auth_ping_counter.pop(sess_id, None)
-
-                    # Remove user session profile from sess redis db/automatically invalidates active JWT tokens   
-                    cur_usr_id = sess_id
-                    await cl_sess_db.connect_db()
-                            
-                    result = await cl_sess_db.del_obj(key=cur_usr_id)
-                    logger.info(f"Session {sess_id} data removal result: {result}")
-
-                    # Clear JWT cookie
-                    resp = jsonify({"Session": "Logged out due to inactivity"})
-                    resp.delete_cookie("access_token")
-                    resp.delete_cookie("api_access_token")
-
-                    logger.info(f"User session {sess_id} logged out due to inactivity")
-                    return resp
                     
                 if PROBE is True:
                     logger.info(f'Probe {sess_id} is either offline or a network outage has occurred.')
@@ -887,11 +700,15 @@ async def check_ip_ws():
 @rate_exempt
 async def heartbeat(probe_id):
     try:
-        if probe_id is None:
+        if probe_id is None or isinstance(probe_id, str) is False or probe_id.strip() == "":
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
         usr_sess_id = websocket.args.get('sess_id') if websocket.args.get('sess_id') is not None else None
+
+        if usr_sess_id is not None and await cl_sess_db.get_all_data(match=f'*{usr_sess_id}*', cnfrm=True) is False:
+            await ip_blocker(conn_obj=websocket, auto_ban=True)
+            await websocket.close()
 
         if await cl_data_db.get_all_data(match=f"*{probe_id}*", cnfrm=True) is False:
             await ip_blocker(conn_obj=websocket, auto_ban=True)
@@ -905,43 +722,34 @@ async def heartbeat(probe_id):
         if probe_id and (probe_id not in connected_probes):
             if usr_sess_id is not None:
                 await websocket.close()
-                
             now = datetime.now(tz=timezone.utc)
             connected_probes[probe_id] = {'conn_start': now,
                                         'id': probe_id,
-                                        "exp": round_up_to_30sec(now + timedelta(seconds=30)),
+                                        "exp": util_obj.round_up_to_30sec(now + timedelta(seconds=30)),
                                         "broker" : Broker(),
                                         }
             logger.debug(f"Initialized ping expiry for session {probe_id} -> {connected_probes[probe_id]['exp']}")
-
-            asyncio.ensure_future(_receive())
+            asyncio.ensure_future(_receive_probe())
             monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
-
             current_probe_data = await cl_data_db.get_all_data(match=f"*{probe_id}*")
-
             current_probe_data_dict = next(iter(current_probe_data.values()))
-
             online_status = {'status': 'online',
                              'badge': 'success',
                              'last_online': now.isoformat()}
-
             await cl_data_db.upload_db_data(id=current_probe_data_dict.get('db_id'), data=online_status)
 
         if probe_id and (probe_id in connected_probes):
             if usr_sess_id is not None:
-                if await cl_sess_db.get_all_data(match=f'*{usr_sess_id}*', cnfrm=True) is False:
-                    await websocket.close()
-
-            asyncio.ensure_future(_receive())
-            monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
-
+                asyncio.ensure_future(_receive_probe())
+            else:
+                asyncio.ensure_future(_receive_probe())
+                monitor_task = asyncio.create_task(session_watchdog(sess_id=probe_id))
         await websocket.accept()
 
         try:
             async for message in  connected_probes[probe_id]['broker'].subscribe():
                 await websocket.send(message)
         except asyncio.CancelledError:
-        # Connection was closed, exit loop to cleanup normally
             logger.debug("Subscribe loop cancelled (client disconnected)")
             pass
         except Exception as e:
@@ -966,11 +774,8 @@ async def heartbeat(probe_id):
 async def ws():
     try:
         if websocket.cookies.get("access_token") is not None:
-            logger.info(websocket.args)
-
             id = None
             user = None
-            monitor_task = None
 
             if websocket.args.get('id') is not None:
                 id = websocket.args.get('id')
@@ -979,12 +784,8 @@ async def ws():
                 user = websocket.args.get('amp;unm')
 
             jwt_token = websocket.cookies.get("access_token")
-            logger.info(f"Received JWT: {jwt_token}")
-
-            # Set rate limit check connection ID to the jwt used to initiate the connection
             client_connection = jwt_token
 
-            # Rate limiter for websocket connections using user jwt tokens
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is False:
                 await ip_blocker(conn_obj=websocket)
                 abort(401)
@@ -1013,24 +814,21 @@ async def ws():
             await websocket.accept()
 
             if id and (id not in auth_ping_counter):
-            # Initialize a session expiry entry for this connection so that a missing ping
-            # during the first 5 minutes will still expire the session.
                 now = datetime.now(tz=timezone.utc)
                 auth_ping_counter[id] = {
                     "sess_id": id,
-                    "exp": round_up_to_5min(now + timedelta(minutes=5, seconds=0, microseconds=0)), # First expiry 5 minutes from now, quantized down
+                    "sign_in_time ": now
                 }
-                logger.debug(f"Initialized ping expiry for session {id} -> {auth_ping_counter[id]['exp']}") 
-                asyncio.ensure_future(_receive())
+                logger.debug(f"user session {id} -> signed in at {auth_ping_counter[id]['sign_in_time ']}") 
+                asyncio.ensure_future(_receive_user())
 
             if id and (id in auth_ping_counter):
-                asyncio.ensure_future(_receive())
+                asyncio.ensure_future(_receive_user())
 
             try:
                 async for message in broker.subscribe():
                     await websocket.send(message)
             except asyncio.CancelledError:
-                # Connection was closed, exit loop to cleanup normally
                 logger.debug("Subscribe loop cancelled (client disconnected)")
                 pass
             except Exception as e:
@@ -1052,13 +850,9 @@ async def ws():
         await ip_blocker(conn_obj=websocket)
         logger.error(InvalidTokenError)
     finally:
-        if monitor_task:
-            try:
-                monitor_task.cancel()
-                await monitor_task
-            except Exception as e:
-                logger.error(f"Error cancelling monitor task: {e}")
-                pass
+        if id and id in auth_ping_counter:
+            auth_ping_counter.pop(id)
+            logger.debug(f"Session {id} removed from auth ping counter on disconnect")
 
 @app.route('/v1/api/core/probe/init', methods=['GET'])
 async def prbinit():
@@ -1144,16 +938,15 @@ async def prbenroll():
     else:
         return jsonify({'status':'probe adoption failed'}), 400
     
-@app.route('/v1/api/core/probes/exec/<string:prb_id>', methods=['POST'])
+@app.route('/v1/api/core/probes/exec/<string:prb_id>/<string:tool>/<string:command>', methods=['POST'])
 @rate_exempt
-async def prbexec(prb_id):
-    logger.info(request.args)
-
+async def prbexec(prb_id, tool, command):
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    sess_id = request.args.get('amp;sess_id')
     usr = request.args.get('usr')
     jwt_token = request.cookies.get('access_token')
 
-    if not api_key or not usr or not jwt_token:
+    if not usr or not jwt_token:
         await ip_blocker(conn_obj=request)
         abort(401)
 
@@ -1161,7 +954,10 @@ async def prbexec(prb_id):
         await ip_blocker(conn_obj=request)
         abort(401)
 
-    await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
+    if api_key and not sess_id:
+        await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
+    else:
+        await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
 
     data = await request.get_json()
 
@@ -1179,13 +975,8 @@ async def prbexec(prb_id):
         headers = {'content-type': 'application/json',
                    'x-api-key': prb_data_dict.get('prb_api_key')
                    }
-
-        probe_tool_call_data = {
-            'action': data['tool'],
-            'params': data['tool_prms']
-        }
                             
-        exec_resp = await client.post(f"{prb_data_dict.get('url')}/v1/api/exec", json=probe_tool_call_data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+        exec_resp = await client.post(f"{prb_data_dict.get('url')}/v1/api/{tool}/{command}", json=data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
 
         exec_resp_data = exec_resp.json()
         logger.info(exec_resp_data)
@@ -1219,128 +1010,6 @@ async def prbdelete():
 
     return jsonify('Probe deleted'), 200
         
-@app.route('/v1/api/core/flow/delete', methods=['POST'])
-async def flowdelete():
-    jwt_token = request.cookies.get("api_access_token")
-    usr = request.args.get('usr')
-
-    if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    await api_jwt_verification(usr=usr, jwt_token=jwt_token, request=request)
-
-    data = await request.get_json()
-    logger.info(data)
-    id = data.get('id')
-
-    result = await cl_data_db.del_obj(key=id)
-
-    if result is not None:
-        return jsonify(result), 200
-    else:
-        return jsonify('Flow deletion failed'), 400
-        
-@app.route('/v1/api/core/flow/save', methods=['POST'])
-async def flowsave():
-    jwt_token = request.cookies.get("api_access_token")
-    usr = request.args.get('usr')
-
-    if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    await api_jwt_verification(usr=usr, jwt_token=jwt_token, request=request)
-
-    data = await request.get_json()
-    logger.info(data)
-    flow = json.loads(data.get('flow'))
-    selected_probe = data.get('probe')
-    name = data.get('name')
-    flow_id = f'flow:{selected_probe}:{str(uuid.uuid4())}'
-
-    flow_data = {
-        'id': flow_id,
-        'probe': selected_probe,
-        'flow': flow,
-        'name': name
-    }
-    logger.info(flow_data)
-
-    save_flow = await cl_data_db.upload_db_data(id=flow_id, data=flow_data)
-
-    if save_flow is not None:
-        return jsonify({'status':'saved', 'flow':f'{flow_id}.json'}), 200
-    else:
-        return jsonify({'status':'failed'}), 400
-        
-@app.route('/v1/api/core/flow/load', methods=['POST'])
-async def flowload():
-    jwt_token = request.cookies.get("api_access_token")
-    usr = request.args.get('usr')
-
-    if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    await api_jwt_verification(usr=usr, jwt_token=jwt_token, request=request)
-
-    data = await request.get_json()
-    logger.info(data)
-    id = data.get('id')
-
-    requested_flow = await cl_data_db.get_all_data(f'*{id}*')
-
-    if requested_flow is not None:
-        logger.info(requested_flow)
-        flow_key=next(iter(requested_flow))
-        requested_flow_data=requested_flow[flow_key]
-        flow_data_str = requested_flow_data['flow']
-        flow_dict = ast.literal_eval(flow_data_str)
-
-        logger.info(flow_dict)
-        returned_data = {
-            'name': requested_flow_data['name'],
-            'flow': flow_dict
-        }
-        return jsonify(returned_data), 200
-    else:
-        return jsonify({'status':'error'}), 400
-    
-@app.route('/v1/api/core/flow/edit', methods=['POST'])
-async def flowedit():
-    jwt_token = request.cookies.get("api_access_token")
-    usr = request.args.get('usr')
-
-    if not jwt_token or not usr:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    await api_jwt_verification(usr=usr, jwt_token=jwt_token, request=request)
-
-    data = await request.get_json()
-    logger.info(data)
-    id = data.get('id')
-    probe = data.get('probe')
-    flow_data = data.get('flow')
-    name = data.get('name')
-
-    await cl_data_db.connect_db()
-
-    if await cl_data_db.del_obj(key=id) is not None:
-        flow_data_payload = {
-            'id': id,
-            'probe': probe,
-            'flow': flow_data,
-            'name': name
-        }
-        logger.info(flow_data_payload)
-
-        if await cl_data_db.upload_db_data(id=id, data=flow_data_payload) > 0:
-            return jsonify({'status':'edited', 'flow':f'{id}.json'}), 200
-        else:
-            return jsonify({'status':'failed'}), 400
-        
 @app.route('/v1/api/core/user/resetapi', methods=['POST'])
 async def resetapi():
     jwt_token = request.cookies.get("access_token")
@@ -1350,7 +1019,7 @@ async def resetapi():
         await ip_blocker(conn_obj=request)
         abort(401)
 
-    usr_data_dict =await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
+    usr_data_dict = await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
 
     if await cl_data_db.del_obj(key=f"api_dta:{usr_data_dict['db_id']}") is not None:
 
@@ -1465,37 +1134,6 @@ async def alerts():
                 return jsonify({'status':'alert resolved'}), 200
             else:
                 return jsonify({'status':'alert resolution failed'}), 400
-
-@app.route('/v1/api/core/user/chats', defaults={'prb_id': 'default','usr': 'default'}, methods=['GET', 'POST'])            
-@app.route('/v1/api/core/user/chats/<string:prb_id>/<string:usr>', methods=['GET', 'POST'])
-async def chats(prb_id, usr):
-    jwt_token = request.cookies.get("access_token")
-    sess_id = request.args.get('sess_id')   
-
-    if not jwt_token or not sess_id:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-    
-    await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
-
-    match request.args.get('action'):
-        case 'cnvrt':
-            selected_chat = await cl_data_db.get_all_data(match=f"*{request.args.get('chat_id')}*")
-            selected_chat_dict = next(iter(selected_chat.values()))
-            
-            if selected_chat is not None:
-                return jsonify(json.loads(selected_chat_dict['tool_calls'])), 200
-            else:                 
-                return jsonify({'status':'chat retrieval failed'}), 400
-        case 'all':
-            if prb_id == 'default' or usr == 'default':
-                return jsonify({'status':'request failed'}), 400
-            
-            all_chats = await cl_data_db.get_all_data(match=f"*chat:{prb_id}:{usr}*")
-            if all_chats is not None:
-                return jsonify(all_chats), 200
-            else:
-                return jsonify({'status':'chat retrieval failed'}), 400
 
 @app.errorhandler(Unauthorized)
 async def unauthorized():

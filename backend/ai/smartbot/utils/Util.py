@@ -15,6 +15,8 @@ from typing import Tuple
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
+import httpx
+from init_app import cl_data_db
 
 class Util:
     def __init__(self):
@@ -127,4 +129,21 @@ class Util:
         base = dt.replace(microsecond=0)
         res = base + timedelta(seconds=add_seconds)
         return res.replace(microsecond=0)
+
+    async def make_http_request(headers: dict, url: str, data: dict, timeout: int = 10):
+        async with httpx.AsyncClient() as client:                  
+            exec_resp = await client.post(url, json=data, headers=headers, timeout=timeout)
+            exec_resp_data = exec_resp.json()
+            if exec_resp.status_code == 200:
+                return True, exec_resp_data
+            else:
+                return False, exec_resp_data
+            
+    async def check_id(connecting_id: int) -> bool:
+        allowed_telegram_ids = await cl_data_db.get_all_data(match=f"telegram_dta:*")
+        for tg_id in allowed_telegram_ids:
+            if tg_id.get('id') != str(connecting_id):
+                return False
+            else:
+                return True
     

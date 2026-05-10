@@ -17,7 +17,7 @@ services:
       - RATE_LIMIT_DB=${RATE_LIMIT_DB}
       - RATE_LIMIT_DB_PORT=${RATE_LIMIT_DB_PORT}
       - SERVER_NAME=${SERVER_NAME}
-      - OLLAMA_PROXY_URL=http://smartbot:8000/v1
+      - OLLAMA_PROXY_URL=${OLLAMA_PROXY_URL}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
       - API_TOKEN_NAME=${API_TOKEN_NAME}
       - OTS_USER=${OTS_USER}
@@ -28,10 +28,7 @@ services:
       - BREVO_API_KEY=${BREVO_API_KEY}
       - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL}
       - OLLAMA_MODEL=${OLLAMA_MODEL}
-      - MAX_CONTACTS_PER_TYPE=${MAX_CONTACTS_PER_TYPE}
       - API_NAME=${API_NAME}
-    volumes:
-      - backend_data:/home/quart/instance/apps
     
   frontend_app:
     restart: always
@@ -49,13 +46,10 @@ services:
       - IP_BAN_DB=${IP_BAN_DB}
       - IP_BAN_DB_PORT=${IP_BAN_DB_PORT}
       - SERVER_NAME=${SERVER_NAME}
-      - OLLAMA_PROXY_URL=http://smartbot:8000/v1
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
       - API_TOKEN_NAME=${API_TOKEN_NAME}
       - MAX_AUTH_ATTEMPTS=${MAX_AUTH_ATTEMPTS}
       - API_NAME=${API_NAME}
-    volumes:
-      - frontend_data:/home/quart/instance/apps
 
   smartbot:
     restart: always
@@ -64,14 +58,17 @@ services:
       dockerfile: backend/ai/smartbot/Dockerfile
     container_name: smartbot
     volumes:
-      - smartbot_data:/home/quart/instance/apps
+      - smartbot_data:/home/quart
     environment:
       - CLIENT_DATA_DB=${CLIENT_DATA_DB}
       - CLIENT_DATA_DB_PORT=${CLIENT_DATA_DB_PORT}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
-      - OLLAMA_MODEL=qwen3:1.7b
-      - OLLAMA_PROXY_URL=http://smartbot:8000/v1
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
       - SERVER_NAME=${SERVER_NAME}
+      - API_NAME=${API_NAME}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
       
   ollama:
     image: ollama/ollama:latest
@@ -140,10 +137,6 @@ volumes:
   smartbot_data:
     external: true
   ollama_models:
-    external: true
-  backend_data:
-    external: true
-  frontend_data:
     external: true
   client_data:
     external: true

@@ -1,8 +1,11 @@
+import uuid
+
 from init_app import (app, client_auth, current_client, logger,
                       Client
                       )
 from forms.LoginForm import LoginForm
-from forms.RegisterForm import RegisterForm
+from forms.TelegramForm import TelegramForm
+from forms.APIForm import APIForm
 from quart import (render_template_string, render_template, flash, redirect, url_for, session, request, abort)
 from quart_wtf.csrf import CSRFError
 from quart_auth import (
@@ -22,38 +25,31 @@ from datetime import datetime, timezone
 util_obj = Util()
 url_key = util_obj.key_gen(size=100)
 url_cmp_id = util_obj.key_gen(size=100)
-
-# Redis DB initialization
-cl_auth_db = RedisDB(hostname=os.environ.get('CLIENT_AUTH_DB'), 
-                     port=os.environ.get('CLIENT_AUTH_DB_PORT'))
-cl_sess_db = RedisDB(hostname=os.environ.get('CLIENT_SESS_DB'), 
-                     port=os.environ.get('CLIENT_SESS_DB_PORT'))
-cl_data_db = RedisDB(hostname=os.environ.get('CLIENT_DATA_DB'), 
-                     port=os.environ.get('CLIENT_DATA_DB_PORT'))
-ip_ban_db = RedisDB(hostname=os.environ.get('IP_BAN_DB'), 
-                    port=os.environ.get('IP_BAN_DB_PORT'))
-mntr_url=os.environ.get('SERVER_NAME')
-api_name = os.environ.get('API_NAME', 'umj-api-wflw')
-max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
+cl_auth_db = RedisDB(hostname=os.getenv('CLIENT_AUTH_DB'), 
+                     port=os.getenv('CLIENT_AUTH_DB_PORT'))
+cl_sess_db = RedisDB(hostname=os.getenv('CLIENT_SESS_DB'), 
+                     port=os.getenv('CLIENT_SESS_DB_PORT'))
+cl_data_db = RedisDB(hostname=os.getenv('CLIENT_DATA_DB'), 
+                     port=os.getenv('CLIENT_DATA_DB_PORT'))
+ip_ban_db = RedisDB(hostname=os.getenv('IP_BAN_DB'), 
+                    port=os.getenv('IP_BAN_DB_PORT'))
+mntr_url=os.getenv('SERVER_NAME')
+api_name = os.getenv('API_NAME', 'umj-api-wflw')
+max_auth_attempts=int(os.getenv('MAX_AUTH_ATTEMPTS'))
 auth_attempts={}
 reg_attempts={}
 
 async def retrieve_user_sess_data(sess_id):
-    # Retrieve user session data
     cl_sess_data = await cl_sess_db.get_all_data(match=f"{sess_id}")
     cl_sess_data_dict = next(iter(cl_sess_data.values()))
     logger.info(cl_sess_data_dict)
-
     data = {'unm': cl_sess_data_dict.get('unm'),
             'id': cl_sess_data_dict.get('db_id'),
             'fnm': cl_sess_data_dict.get('fname'),
             'lnm': cl_sess_data_dict.get('lname'),
             'eml': cl_sess_data_dict.get('eml'),
             'sess_id': sess_id}
-
-    # URL for agent websocket connection initialization
     ws_url = f"wss://{mntr_url}/v1/api/core/channels/users/ws?id={sess_id}&unm={cl_sess_data_dict.get('unm')}"
-
     return data, ws_url
 
 async def retrieve_task_results(prb_id, task):
@@ -138,12 +134,8 @@ async def check_ip():
     if await ip_ban_db.get_all_data(match=f"blocked_ip:{request.access_route[-1]}", cnfrm=True) is True:
         abort(403)
 
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'POST'])
 async def index():
-    return await render_template('index/index.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-async def login():
     try:
         logger.info(request.access_route)
         session["csrf_ready"] = True
@@ -161,7 +153,7 @@ async def login():
 
             if await cl_auth_db.get_all_data(match=f'*uid:{username}*', cnfrm=True) is False:
                 await flash(message='Create an account...', category='danger')
-                return redirect(url_for('register'))
+                return redirect(url_for('index'))
 
             account_data = await cl_auth_db.get_all_data(match=f'*uid:{username}*')
             logger.info(account_data)
@@ -202,7 +194,7 @@ async def login():
                 rndm_cmp_id=util_obj.key_gen(size=100)
                 session['url_key'] = util_obj.key_gen(size=100)
 
-                resp = redirect(url_for('dashboard', cmp_id=rndm_cmp_id, obsc=session.get('url_key')))
+                resp = redirect(url_for('smartbot', cmp_id=rndm_cmp_id, obsc=session.get('url_key')))
 
                 resp.set_cookie(
                             "access_token",
@@ -242,92 +234,14 @@ async def login():
                     await flash(message=f'Authentication successful for {sub_dict.get('unm')}!', category='success')
                     return resp
 
-        return await render_template('index/login.html', form=form)
+        return await render_template('index/index.html', form=form)
     except Exception as e:
         logger.error( json.dumps({
             'status': 'error',
             'message': str(e)
         }), exc_info=True)
 
-        return redirect(url_for('login'))
-    
-@app.route('/register', methods=['GET', 'POST'])
-async def register():
-    try:
-        session["csrf_ready"] = True
-        form = await RegisterForm.create_form()
-
-        if await form.validate_on_submit():
-            reg_key = form.reg_key.data
-            username = form.uname.data.replace(" ", "").lower()
-
-            if await cl_auth_db.get_all_data(match=f"reg_key:{username}:*", cnfrm=True) is False:
-                await ip_blocker()
-                await flash(message=f'Registration failed. Try again.', category='danger')
-                return redirect(url_for('register'))
-                
-            reg_key_data = await cl_auth_db.get_all_data(match=f"reg_key:{username}:*")
-
-            reg_key_sub_dict = next(iter(reg_key_data.values()))
-
-            logger.info(reg_key_sub_dict)
-
-            if bcrypt.verify(secret=reg_key, hash=reg_key_sub_dict.get("reg_key")) is False:
-                await ip_blocker()
-                await flash(message=f'Registration failed. Try again.', category='danger')
-                return redirect(url_for('register'))
-
-            password = form.password.data
-            email = form.email.data
-            fname = form.fname.data
-            lname = form.lname.data
-
-            password_hash = bcrypt.hash(password)
-
-            username = username.replace(" ", "").lower()
-
-            logger.info("Registering user: %s", username)
-
-            user_nmp, user_id = util_obj.gen_user(username=username)
-
-            user_obj = {
-                "id": user_id,
-                "unm": username,
-                "eml": email,
-                "pwd": password_hash,
-                "fname": fname, 
-                "lname": lname
-            }
-
-            logger.info(f"User ID: {user_obj['id']}")
-
-            user_exist = await cl_auth_db.get_all_data(match=f'*uid:{username}*', cnfrm=True)
-
-            if user_exist is False:
-                # redis db key for new users
-                user_key = f"{user_nmp}:{user_id}"
-                user_obj['db_id'] = user_key
-                logger.info(user_obj)
-
-                # Upload user data
-                if await cl_auth_db.upload_db_data(id=f"{user_key}", data=user_obj) > 0:
-                    reg_key_del = await cl_auth_db.del_obj(key=reg_key_sub_dict.get('id')) 
-                    logger.info(f"Registration key deletion status: {reg_key_del}")
-
-                    await flash(message=f'Registration successful for {username}!', category='success')
-                    return redirect(url_for('login'))
-                else:
-                    await flash(message=f'Registration failed for {username}. Try again.', category='danger')
-                    return redirect(url_for('register'))
-            else:
-                await flash(message=f'Account for {username} already exist!', category='danger')
-                return redirect(url_for('login'))
-
-        return await render_template('index/register.html', form=form)
-
-    except Exception as e:
-        logger.error(json.dumps({'status': 'error', 'message': str(e)}), exc_info=True)
-        return redirect(url_for('register'))
+        return redirect(url_for('index'))
 
 @app.route('/logout/<string:auth_id>', methods=['GET'])
 @user_login_required
@@ -343,7 +257,7 @@ async def logout(auth_id):
 
         logger.info(result)
 
-        resp = redirect(url_for("login"))
+        resp = redirect(url_for("index"))
         resp.delete_cookie("access_token")
         resp.delete_cookie("api_access_token")
 
@@ -357,20 +271,33 @@ async def logout(auth_id):
             "status": "error",
             "message": str(e)
         }), exc_info=True)
-        resp = redirect(url_for("login"))
+        resp = redirect(url_for("index"))
         resp.delete_cookie("access_token")
         resp.delete_cookie("api_access_token")
         return resp
-
-@app.route('/dashboard', defaults={'cmp_id': url_cmp_id,'obsc': url_key, 'prb_id': 'default'}, methods=['GET', 'POST'])
-@app.route("/dashboard/<string:cmp_id>/<string:obsc>/<string:prb_id>", methods=['GET', 'POST'])
+    
+@app.route('/settings', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
+@app.route("/settings/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
 @user_login_required
-async def dashboard(cmp_id, obsc, prb_id):
+async def settings(cmp_id, obsc):
     cur_usr_id = current_client.auth_id
     session["csrf_ready"] = True
     user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
+    telegram_form = await TelegramForm.create_form()
+    api_form = await APIForm.create_form()
+    tg_data = {}
 
-    return await render_template("app/dashboard.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data)
+    if await telegram_form.validate_on_submit():
+        tg_data['id'] = telegram_form.user_id.data if telegram_form.user_id.data else telegram_form.chat_id.data if telegram_form.chat_id.data else ""
+
+        if await cl_data_db.upload_db_data(id=f"telegram_dta:{str(uuid.uuid4())}", data=tg_data) > 0:
+            await flash(message="Telegram settings saved successfully!", category="success")
+            return redirect(url_for('settings', cmp_id=cmp_id, obsc=obsc))
+        else:
+            await flash(message="Failed to save Telegram settings. Please try again.", category="danger")
+            return redirect(url_for('settings', cmp_id=cmp_id, obsc=obsc))
+
+    return await render_template("app/settings.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, user=user_data.get('unm'), ws_url=ws_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, data=user_data, telegram_form=telegram_form, api_form=api_form)
 
 @app.route('/smartbot', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
 @app.route("/smartbot/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])

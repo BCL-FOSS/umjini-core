@@ -1,20 +1,8 @@
 from datetime import datetime
-from ai.smartbot.utils.RedisDB import RedisDB
-from utils.Util import Util
-from uuid import uuid4
 import asyncio
 import argparse
-import os
-from passlib.hash import bcrypt
-import logging
-from datetime import datetime, timedelta, timezone
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-ip_ban_db = RedisDB(hostname=os.environ.get('IP_BAN_DB'), 
-                    port=os.environ.get('IP_BAN_DB_PORT'))
-util_obj = Util()
+from datetime import datetime, timezone
+from app import ip_ban_db, logger
 
 async def edit_db(action: str, ip_address: str):
     await ip_ban_db.connect_db()

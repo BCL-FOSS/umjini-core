@@ -11,14 +11,12 @@ from accounts.Admin import Admin
 import os
 from quart_rate_limiter import (RateLimiter, RateLimit, timedelta)
 
-
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('passlib').setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 app = Quart(__name__)
 app.config.from_object("config")
-app.config['ANSIBLE_FOLDER'] = 'ansible/'
 app.config['SECRET_KEY'] = secrets.token_urlsafe()
 app.config['SECURITY_PASSWORD_SALT'] = str(secrets.SystemRandom().getrandbits(128))
 
@@ -26,27 +24,6 @@ app.config['SECURITY_PASSWORD_SALT'] = str(secrets.SystemRandom().getrandbits(12
 app.config["PREFERRED_URL_SCHEME"] = "https"
 app.config["SERVER_NAME"] = os.environ.get('SERVER_NAME')
 app.config["WTF_CSRF_HEADERS"] = ["X-Forwarded-For", "X-Forwarded-Proto"]
-
-# umjiniti data folder names
-folder_name = 'appdata'
-qr_code_folder_name = 'qrcodes'
-pcaps_folder_name =  'pcaps'
-
-# data folder directories
-data_dir_path = os.path.join(app.instance_path, folder_name)
-pcaps_dir = os.path.join(data_dir_path, pcaps_folder_name)
-
-if os.path.exists(data_dir_path) is False:
-    os.makedirs(data_dir_path, exist_ok=True)
-
-    os.makedirs(pcaps_dir, exist_ok=True)
-
-APP_DATA_DIR = data_dir_path
-PCAPS_DIR = pcaps_dir
-
-app.config['APP_DATA_DIR'] = APP_DATA_DIR
-app.config['PCAPS_DIR'] = PCAPS_DIR
-app.config['PRB_DATA_DIR'] = 'probe/'
 
 # Authentication salts for user & admin accounts
 auth_salts = {

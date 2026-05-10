@@ -2,108 +2,56 @@
 
 {% block content %}
 
-<div class="border-radius-xl mt-3 mx-3 position-relative" style="background-image: url('/static/img/bcl/index_bg.jpg') ; background-size: cover;">
-    <main class="main-content mt-1 border-radius-lg">
-      <div class="section min-vh-85 position-relative transform-scale-0 transform-scale-md-7">
-        <div class="container">
-          <div class="row pt-10">
-            <div class="col-lg-1 col-md-1 pt-5 pt-lg-0 ms-lg-5 text-center">
-              
-            </div>
-            <div class="col-lg-8 col-md-11">
-              <div class="d-flex">
-                <div class="me-auto">
-                  <h1 class="display-1 font-weight-bold mt-n4 mb-0 text-white">umjiniti</h1>
-                  <h6 class="text-uppercase mb-0 ms-1 text-white">Network Monitoring and Agentic Automation Platform</h6>
-                </div>
-                <div class="ms-auto">
-                  <img class="w-50 float-end mt-lg-n4 rounded-circle img-fluid" src="{{ url_for('static', filename='img/bcl/umjinilogo.png') }}" alt="umjini logo" />
-                </div>
+<section class="min-vh-100 mb-8">
+  <div class="page-header align-items-start min-vh-50 pt-5 pb-11 m-3 border-radius-lg" style="background-image: url('../assets/img/curved-images/curved14.jpg');">
+    <span class="mask bg-gradient-dark opacity-6"></span>
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-5 text-center mx-auto">
+          <h1 class="text-white mb-2 mt-5">Welcome to umjiniNMS!</h1>
+          <p class="text-lead text-white">Get ready to modernize how you manage your IT Infrastructure</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="row mt-lg-n10 mt-md-n11 mt-n10">
+      <div class="col-xl-4 col-lg-5 col-md-7 mx-auto">
+        <div class="card z-index-0">
+          <div class="card-header text-center pt-4">
+            <h5>Login</h5>
+          </div>
+          <div class="card-body">
+            <form method="POST">
+              {{ form.hidden_tag() }}
+                <!--{{ form.csrf_token }}-->
+              <div class="form-floating mb-3">
+                  <label for="username">Username</label>
+                  {{ form.username(class="form-control") }}
               </div>
-              <div class="row mt-4">
-                <div class="col-lg-4 col-md-4">
-                  <div class="card move-on-hover overflow-hidden">
-                    <div class="card-body">
-                      <a class="d-flex" href="{{ url_for('register') }}">
-                        <div class="mb-0 me-3" >
-                          <div class="icon icon-shape icon-md shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-plus-fill" viewBox="0 0 16 16">
-                              <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
-                              <path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5"/>
-                            </svg>
-                          </div>
-                        </div>
-                        <span class="mb-0 font-weight-normal">Register</span>
-                      </a>
-                      <hr class="horizontal dark">
-                      <a class="d-flex" ->
-                        <div class="mb-0 me-3" >
-                          <div class="icon icon-shape icon-md shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-in-right" viewBox="0 0 16 16">
-                              <path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 6.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-8A1.5 1.5 0 0 0 5 3.5v2a.5.5 0 0 0 1 0z"/>
-                              <path fill-rule="evenodd" d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
-                            </svg>
-                          </div>
-                        </div>
-                        <span class="mb-0 font-weight-normal">Login</span>
-                      </a>
-                      <hr class="horizontal dark">
-                      <a class="d-flex" target="_blank" href="https://github.com/BCL-FOSS/umjiniti-core">
-                        <div class="mb-0 me-3" >
-                          <div class="icon icon-shape icon-md shadow border-radius-md bg-white text-center me-2 d-flex align-items-center justify-content-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16">
-                              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
-                            </svg>
-                          </div>
-                          
-                        </div>
-                        <span class="mb-0 font-weight-normal">Github</span>
-                      </a>
-                    </div>
-                    <a href="javascript:;" class="bg-gray-100 w-100 text-center py-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Show More">
-                      <i class="fas fa-chevron-down text-primary"></i>
-                    </a>
-                  </div>
-                </div>
-                <div class="col-lg-4 col-md-4 mt-4 mt-sm-0">
-                  <div class="card bg-gradient-dark move-on-hover">
-                    <div class="card-body">
-                      <div class="d-flex">
-                        <h5 class="mb-0 text-white">Active Alerts</h5>
-                        <div class="ms-auto">
-                          <h1 class="text-white text-end mb-0 mt-n2">{{ alert_count }}</h1>
-                          <p class="text-sm mb-0 text-white">alerts</p>
-                        </div>
-                      </div>
-                    </div>
-                    <a class="w-100 text-center py-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Show More">
-                      <i class="fas fa-chevron-down text-white"></i>
-                    </a>
-                  </div>
-                </div>
-                <div class="col-lg-4 col-md-4 mt-4 mt-sm-0">
-                  <div class="card bg-gradient-dark move-on-hover">
-                    <div class="card-body">
-                      <div class="d-flex">
-                        <h5 class="mb-0 text-white">Probes Online</h5>
-                        <div class="ms-auto">
-                          <h1 class="text-white text-end mb-0 mt-n2">{{ probes_online_count }}</h1>
-                          <p class="text-sm mb-0 text-white">probes</p>
-                        </div>
-                      </div>
-                    </div>
-                    <a class="w-100 text-center py-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Show More">
-                      <i class="fas fa-chevron-down text-white"></i>
-                    </a>
-                  </div>
-                </div>
+              <div class="form-floating mb-3">
+                  <label for="password">Password</label>
+                  {{ form.password(class="form-control") }}
               </div>
-            </div>
+              <div class="form-floating mb-3">
+                  {% if form.errors %}
+                      <ul class="error">
+                          {% for error in form.errors %}
+                              <li>{{ error }}</li>
+                          {% endfor %}
+                      </ul>
+                  {% endif %}
+              </div>
+              <div class="d-grid">
+                  {{ form.submit(class="btn btn-dark btn-round") }}
+                  <a class="btn btn-dark btn-round mb-0 bg-gradient-light me-2" href="{{ url_for('index') }}">Back to Home</a>
+              </div>
+            </form>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   </div>
-
+</section>
 
 {% endblock %}

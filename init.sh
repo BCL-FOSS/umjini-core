@@ -77,8 +77,6 @@ dockersetup() {
 
   sudo docker-compose build --no-cache 
 
-  sudo docker volume create --name=backend_data
-  sudo docker volume create --name=frontend_data
   sudo docker volume create --name=client_sess_data
   sudo docker volume create --name=client_auth_data
   sudo docker volume create --name=client_data

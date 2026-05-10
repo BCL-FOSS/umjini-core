@@ -1,142 +1,19 @@
 import re
 import json
-import httpx
 import uuid
 from quart import request, jsonify
-from init_app import app, logger
-import os
+from init_app import app, logger, headers, rag_engine, parser, call_mcp, fetch_mcp_tools, chat_with_ollama, REQUIRED_OUT_OF_SCOPE_MSG, cl_data_db
 import uuid
 from datetime import datetime, timezone
+from quart.utils import run_sync
 
-OLLAMA_URL_FLOW = "http://ollama:11434"
-OLLAMA_URL = "http://ollama:11434/api/chat"
-REQUIRED_OUT_OF_SCOPE_MSG = "Please provide a question or request related to network administration or the available MCP tools."
+@app.before_serving
+async def db_startup():
+    await rag_engine.init_chroma_db()
+    await cl_data_db.connect()
 
-# Headers and payloads to initialize MCP server connections
-headers = {
-    'accept': 'application/json, text/event-stream',
-    'content-type': 'application/json'
-}
-
-init_payload = {
-    "jsonrpc": "2.0",
-    "method": "initialize",
-    "params": {
-        "protocolVersion": "2025-08-24",
-        "capabilities": {},
-        "clientInfo": {
-            "name": "python-client",
-            "version": "1.0.0"
-        }
-    },
-    "id": 1
-}
-
-init_complete_payload = {
-    "jsonrpc": "2.0",
-    "method": "notifications/initialized"
-}
-
-# === Utility: Clean Ollama output ===
-def clean_ollama_output(raw: str) -> str:
-    """Strip <think> blocks and whitespace from model output."""
-    return re.sub(r"<think>.*?</think>", "", raw, flags=re.S).strip()
-
-
-# === Defensive parser for MCP arguments ===
-def normalize_arguments(args):
-    """
-    Ensure arguments are always a dict of values (per OpenAI tool spec).
-    If model echoes a schema, convert required keys to placeholders.
-    """
-    if isinstance(args, dict):
-        logger.debug(f"Using arguments as-is: {args}")
-        return args
-    elif isinstance(args, list) and len(args) > 0 and isinstance(args[0], dict):
-        schema_obj = args[0]
-        clean_args = {}
-        for req in schema_obj.get("required", []):
-            clean_args[req] = f"<missing:{req}>"
-        logger.warning(f"Model returned schema instead of values. Converted to placeholders: {clean_args}")
-        return clean_args
-    else:
-        logger.warning(f"Unexpected arguments format: {args}")
-        return {}
-
-async def call_mcp(server_url: str, tool_call: dict):
-    """
-    Call the FastMCP server tool with sanitized arguments.
-    """
-    tool_name = tool_call.get("name")
-    args = normalize_arguments(tool_call.get("arguments", {}))
-    logger.info(f"Calling MCP tool `{tool_name}` with arguments: {args}")
-
-    async with httpx.AsyncClient() as client:
-        # Initialize MCP session
-        resp = await client.post(server_url, json=init_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-        
-        session_id = resp.headers.get('mcp-session-id')
-        headers['Mcp-Session-Id'] = session_id
-        logger.info(f"Using MCP session: {session_id}")
-
-        # Complete initialization
-        init_complete_resp = await client.post(server_url, json=init_complete_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-        # Perform tool call
-        tool_call_payload = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": args
-            },
-            "id": 2
-        }
-
-        tool_call_resp = await client.post(server_url, json=tool_call_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-        # Extract SSE "data:" line
-        lines = tool_call_resp.text.split('\n')
-        data_line = next((line for line in lines if line.startswith('data: ')), None)
-        if data_line:
-            result = json.loads(data_line[6:])
-            answer = result['result']['content'][0]
-            #answer_data = json.loads(answer['text'])
-            text = answer.get("text")
-            answer_data = json.loads(text)
-            return answer_data
-
-async def fetch_mcp_tools(server_url: str) -> list:
-    """
-    Fetch available tool schemas (inputs + returns) from MCP server manifest.
-    """
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(server_url, json=init_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-      
-        session_id = resp.headers.get('mcp-session-id')
-        headers['Mcp-Session-Id'] = session_id
-        logger.info(f"Fetched MCP session: {session_id}")
-
-        init_complete_resp = await client.post(server_url, json=init_complete_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-        tool_list_payload = {
-            "jsonrpc": "2.0",
-            "method": "tools/list",
-            "id": 2
-        }
-
-        tool_list_resp = await client.post(server_url, json=tool_list_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-        lines = tool_list_resp.text.split('\n')
-        data_line = next((line for line in lines if line.startswith('data: ')), None)
-        if data_line:
-            result = json.loads(data_line[6:])
-            tool_data = result['result']
-            logger.info(f"Available tools: {tool_data['tools']}")
-            return tool_data['tools']
-
-@app.route("/v1/multitools", methods=["POST"])
-async def multitools():
+@app.route("/v1/chat", methods=["POST"])
+async def chat():
     data = await request.get_json()
     logger.info(f"Incoming request: {data}")
 
@@ -149,6 +26,7 @@ async def multitools():
     headers['x-api-key'] = api_key
     logger.info(headers)
     tool_instructions = ""
+    response_payload = {}
 
     if 'tool_instructions' in data and data['tool_instructions']:
         tool_instructions = data['tool_instructions']
@@ -196,20 +74,7 @@ async def multitools():
         {"role": "user", "content": user_input},
     ]
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            OLLAMA_URL,
-            json={"model": model, "messages": conversation, "stream": False},
-            timeout=int(os.environ.get('REQUEST_TIMEOUT')),
-        )
-      
-        ollama_json = resp.json()
-        ollama_out = ollama_json.get("message", {}).get("content", "")
-        logger.info(f"Ollama output (raw): {ollama_out}")
-        #await resp.aclose()
-
-    # --- Step D: Parse model output ---
-    ollama_out_clean = clean_ollama_output(ollama_out)
+    ollama_out_clean = await chat_with_ollama(conversation, model)
 
     if f"I am a locally hosted, open source {model} model running on ollama.".lower() in ollama_out_clean.lower():
         logger.info(tools[0].get('server_url'))
@@ -269,18 +134,8 @@ async def multitools():
                 "Do NOT return schemas, descriptions, or wrap arguments in arrays."
             )
         })
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                OLLAMA_URL,
-                json={"model": model, "messages": conversation, "stream": False},
-                timeout=int(os.environ.get('REQUEST_TIMEOUT')),
-            )
-            #resp.raise_for_status()
-            retry_json = resp.json()
-            retry_out = retry_json.get("message", {}).get("content", "")
-            logger.info(f"--- RETRY OUTPUT ---\n{retry_out}\n-------------------")
-            #await resp.aclose()
-            return clean_ollama_output(retry_out)
+
+        return await chat_with_ollama(conversation, model)
 
     # If parsed is bad or arguments are schema instead of values
     if not (isinstance(parsed, dict) and "name" in parsed and is_valid_arguments(parsed)) and not (isinstance(parsed, list)):
@@ -348,17 +203,6 @@ async def multitools():
                 logger.warning(f"No server found exposing tool `{tool_name}`; marking as out-of-scope")
                 tool_outputs.append({"tool": tool_name, "error": "Tool not available on known MCP servers"})
 
-        response_payload={}
-
-        """
-        if len(tool_outputs) == 1:
-            final_output = json.dumps(tool_outputs[0].get("output"))
-            response_payload['output_type'] = 'single_tool'
-        else:
-            final_output = json.dumps(tool_outputs)
-            response_payload['output_type'] = 'multi_tool'
-        """
-    
         final_output = json.dumps(tool_outputs)
 
     response_payload['id'] = f"resp:{user}:{server_url}:{(tool_calls[0].get('name') if tool_calls else 'none')}:"
@@ -372,3 +216,330 @@ async def multitools():
     logger.info(response_payload)
 
     return jsonify(response_payload)
+
+@app.route('/v1/stats', methods=['GET'])
+async def get_stats():
+    """Get RAG engine statistics"""
+    stats = await rag_engine.get_collection_stats()
+    return jsonify({
+            "stats": stats
+        }), 200
+   
+@app.route('/v1/ingest', methods=['POST'])
+async def ingest_tool_output():
+    """
+    Ingest network tool output
+    
+    Body:
+    {
+        "tool_type": "nmap|tcpdump|traceroute|iperf|tshark|pcap",
+        "output": "raw tool output",
+        "metadata": {
+            "probe": "probe-01",
+            "target": "192.168.1.1",
+            "timestamp": "2026-02-05T12:00:00Z"
+        }
+    }
+    """
+    data = await request.get_json()
+    if not data:
+        return jsonify(), 400
+        
+    tool_type = data.get('tool_type')
+    output = data.get('output')
+    metadata = data.get('metadata', {})
+        
+    if not tool_type or not output:
+        return jsonify(), 400
+        
+    if 'timestamp' not in metadata:
+        metadata['timestamp'] = datetime.now(timezone.utc).isoformat()
+        
+    metadata['tool_type'] = tool_type
+        
+    parsed = await run_sync(lambda: parser.parse_tool_output(tool_type, output))()
+        
+    doc_id = f"{tool_type}_{metadata.get('timestamp')}_{metadata.get('probe', 'default')}"
+        
+    content = f"Tool: {tool_type}\n"
+    content += f"Timestamp: {metadata.get('timestamp')}\n"
+    content += f"Probe: {metadata.get('probe', 'N/A')}\n"
+    content += f"Target: {metadata.get('target', 'N/A')}\n\n"
+    content += f"Raw Output:\n{output}\n\n"
+        
+    if parsed.get('anomalies'):
+        content += f"Detected Anomalies:\n{json.dumps(parsed['anomalies'], indent=2)}\n"
+
+    if await rag_engine.ingest_document(doc_id, content, metadata) is True:
+
+        if await cl_data_db.upload_db_data(
+                id=doc_id,
+                data={
+                    "tool_type": tool_type,
+                    "timestamp": metadata.get('timestamp'),
+                    "parsed": json.dumps(parsed),
+                    "has_anomalies": len(parsed.get('anomalies', [])) > 0
+                }
+            ) is not None:
+                return jsonify(), 200
+        else:
+            logger.error("Failed to upload data to Redis after successful RAG ingestion")
+            return jsonify(), 500
+    else:
+        logger.error("Failed to ingest document into RAG engine")
+        return jsonify(), 500
+    
+@app.route('/v1/ingest/batch', methods=['POST'])
+async def ingest_batch():
+    """
+    Batch ingest multiple tool outputs
+    
+    Body:
+    {
+        "documents": [
+            {
+                "tool_type": "nmap",
+                "output": "...",
+                "metadata": {...}
+            },
+            ...
+        ]
+    }
+    """
+    data = await request.get_json()
+    documents = data.get('documents', [])
+        
+    if not documents:
+        return jsonify(), 400
+        
+    processed_docs = []
+        
+    for doc in documents:
+        tool_type = doc.get('tool_type')
+        output = doc.get('output')
+        metadata = doc.get('metadata', {})
+            
+        if not tool_type or not output:
+            continue
+            
+        if 'timestamp' not in metadata:
+            metadata['timestamp'] = datetime.now(timezone.utc).isoformat()
+            
+        metadata['tool_type'] = tool_type
+            
+        parsed = await run_sync(lambda: parser.parse_tool_output(tool_type, output))()
+            
+        doc_id = f"{tool_type}_{metadata.get('timestamp')}_{metadata.get('probe', 'default')}"
+            
+        content = f"Tool: {tool_type}\n"
+        content += f"Timestamp: {metadata.get('timestamp')}\n"
+        content += f"Raw Output:\n{output}\n\n"
+            
+        if parsed.get('anomalies'):
+            content += f"Anomalies:\n{json.dumps(parsed['anomalies'], indent=2)}\n"
+
+        if await cl_data_db.upload_db_data(
+                id=doc_id,
+                data={
+                    "tool_type": tool_type,
+                    "timestamp": metadata.get('timestamp'),
+                    "parsed": json.dumps(parsed),
+                    "has_anomalies": len(parsed.get('anomalies', [])) > 0
+                }
+            ) is None:
+                return jsonify(), 500
+        else:
+            logger.error(f"Failed to upload data for document {doc_id} to Redis")
+            
+        processed_docs.append({
+                'id': doc_id,
+                'content': content,
+                'metadata': metadata
+            })
+        
+    count = await rag_engine.ingest_batch(processed_docs)
+
+    if count is None or count == 0:
+        return jsonify(), 400
+        
+    return jsonify({
+            "ingested_count": count,
+            "total_submitted": len(documents)
+        }), 200
+    
+@app.route('/v1/query', methods=['POST'])
+async def query_rag():
+    """
+    Query the RAG system
+    
+    Body:
+    {
+        "query": "Show me recent port scans",
+        "n_results": 5,
+        "filter": {"tool_type": "nmap"}
+    }
+    """
+    data = await request.get_json()
+        
+    query = data.get('query')
+    n_results = data.get('n_results', 5)
+    where_filter = data.get('filter')
+        
+    if not query:
+        return jsonify(), 400
+        
+    result = await rag_engine.rag_query(query, n_results, where_filter)
+        
+    return jsonify({
+            "result": result
+        }), 200
+    
+@app.route('/v1/analyze', methods=['POST'])
+async def analyze_output():
+    """
+    Analyze tool output for anomalies without ingesting
+    
+    Body:
+    {
+        "tool_type": "tcpdump",
+        "output": "raw output",
+        "metadata": {...}
+    }
+    """
+    data = await request.get_json()
+        
+    tool_type = data.get('tool_type')
+    output = data.get('output')
+    metadata = data.get('metadata', {})
+        
+    if not tool_type or not output:
+        return jsonify(), 400
+        
+    parsed = await run_sync(lambda: parser.parse_tool_output(tool_type, output))()
+
+    if not parsed:
+        return jsonify(), 500
+        
+    metadata['tool_type'] = tool_type
+    metadata['timestamp'] = metadata.get('timestamp', datetime.now(timezone.utc).isoformat())
+        
+    content = f"Tool: {tool_type}\n{output}"
+        
+    anomaly_result = await rag_engine.detect_anomalies(content, metadata)
+        
+    return jsonify({
+            "parsed": parsed,
+            "rag_analysis": anomaly_result
+        }), 200
+    
+@app.route('/v1/process', methods=['POST'])
+async def process_and_act():
+    """
+    Complete pipeline: ingest, analyze, decide action, optionally execute
+    
+    Body:
+    {
+        "tool_type": "nmap",
+        "output": "...",
+        "metadata": {...},
+        "available_tools": ["send_email_alert", "create_jira_ticket"],
+        "auto_execute": false
+    }
+    
+    or
+
+    Body:
+    {
+        "documents": [
+            {
+                "tool_type": "nmap",
+                "output": "...",
+                "metadata": {...},
+                "available_tools": ["send_email_alert", "create_jira_ticket"],
+                "auto_execute": false
+            },
+            ...
+        ]
+    }
+    """
+    data = await request.get_json()
+
+    documents = data.get('documents')
+    if documents:
+        results = await rag_engine.batched_process_and_act(documents)
+        if not results:
+            return jsonify(), 500
+        return jsonify({
+                "data": results
+            }), 200
+
+    tool_type = data.get('tool_type')
+    output = data.get('output')
+    metadata = data.get('metadata')
+    available_tools = data.get('available_tools')
+    auto_execute = data.get('auto_execute', False)
+            
+    if not tool_type or not output:
+        return jsonify(), 400
+            
+    metadata['tool_type'] = tool_type
+    metadata['timestamp'] = metadata.get('timestamp', datetime.now(timezone.utc).isoformat())
+            
+    content = f"Tool: {tool_type}\nTimestamp: {metadata['timestamp']}\n\n{output}"
+            
+    result = await rag_engine.process_and_act(
+        content,
+        metadata,
+        available_tools,
+        auto_execute
+    )
+        
+    if not result:
+        return jsonify(), 500
+        
+    return jsonify({
+                "data": result,
+                "db_id": f"processed-{tool_type}-{metadata['timestamp']}-{str(uuid.uuid4())}" 
+            }), 200
+    
+@app.route('/v1/history', methods=['GET'])
+async def get_history():
+    """
+    Get ingestion history from Redis
+    
+    Query params:
+    - tool_type: Filter by tool type
+    - has_anomalies: Filter by anomaly presence (true/false)
+    """
+    tool_type = request.args.get('tool_type')
+    has_anomalies = request.args.get('has_anomalies')
+        
+    if tool_type:
+        pattern = f"{tool_type}_*"
+    else:
+        pattern = "*"
+        
+    all_data = await cl_data_db.get_all_data(match=pattern)
+        
+    if not all_data:
+        return jsonify(), 200
+        
+    history = []
+    for doc_id, data in all_data.items():
+        if has_anomalies is not None:
+            has_anom = data.get('has_anomalies', 'False') == 'True'
+            filter_anom = has_anomalies.lower() == 'true'
+            if has_anom != filter_anom:
+                continue
+            
+        history.append({
+                "document_id": doc_id,
+                "tool_type": data.get('tool_type'),
+                "timestamp": data.get('timestamp'),
+                "has_anomalies": data.get('has_anomalies') == 'True'
+            })
+        
+    return jsonify({
+            "count": len(history),
+            "history": history
+        }), 200

@@ -1,13 +1,9 @@
 import re
-import json
-import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from datetime import datetime
-import xml.etree.ElementTree as ET
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+from datetime import datetime, timezone
+from smartbot.init_app import logger
+from typing import Callable
 
 class NetworkToolParser:
     """Parser for various network CLI tool outputs with anomaly detection"""
@@ -415,33 +411,26 @@ class NetworkToolParser:
         Returns:
             Parsed and analyzed output with anomalies
         """
-        parsers = {
+        parsers: dict[str, Callable[[dict], object]] = {
             'nmap': cls.parse_nmap,
             'tcpdump': cls.parse_tcpdump,
             'traceroute': cls.parse_traceroute,
-            'dnstraceroute': cls.parse_traceroute,  # Same format
+            'dnstraceroute': cls.parse_traceroute,
             'iperf': cls.parse_iperf,
             'tshark': cls.parse_tshark,
-            'pcap': cls.parse_pcap_summary
-        }
+            'pcap': cls.parse_pcap_summary        
+            }
         
         parser = parsers.get(tool_type.lower())
-        
         if parser:
-            try:
-                result = parser(output)
-                result["parsed_at"] = datetime.utcnow().isoformat()
-                return result
-            except Exception as e:
-                logger.error(f"Error parsing {tool_type}: {e}", exc_info=True)
-                return {
-                    "tool": tool_type,
-                    "raw_output": output,
-                    "error": str(e),
-                    "anomalies": []
-                }
+            result = parser(output)
+            if not result:
+                logger.info(f"Parser for {tool_type} returned no result")
+                return None
+            
+            result["parsed_at"] = datetime.now(timezone.utc).isoformat()
+            return result   
         else:
-            # Generic parsing
             return {
                 "tool": tool_type,
                 "raw_output": output,

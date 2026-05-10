@@ -1,4 +1,3 @@
-from init_app import (app)
 from quart import (Request, Websocket, websocket, render_template_string)
 import asyncio
 from utils.broker import Broker
@@ -10,45 +9,34 @@ from quart_rate_limiter import rate_exempt
 import os
 from ai.smartbot.utils.RedisDB import RedisDB
 from quart import (websocket, abort, jsonify)
-import asyncio
 import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
-import json
 from utils.WSRateLimiter import WSRateLimiter
-from utils.Util import Util
+from ai.smartbot.utils.Util import Util
 from quart import request, jsonify, request, Response
 from passlib.hash import bcrypt
 from quart_auth import Unauthorized
-from passlib.hash import bcrypt
-import asyncio
-import httpx
-import secrets
 from datetime import datetime, timedelta, timezone
-from onetimesecret import OneTimeSecretCli
-from ai.smartbot.utils.EmailSenderHandler import EmailSenderHandler
 import uuid
 
-cl_sess_db = RedisDB(hostname=os.environ.get('CLIENT_SESS_DB'), 
-                                                    port=os.environ.get('CLIENT_SESS_DB_PORT'))
-cl_auth_db = RedisDB(hostname=os.environ.get('CLIENT_AUTH_DB'), 
-                                                    port=os.environ.get('CLIENT_AUTH_DB_PORT'))
-cl_data_db = RedisDB(hostname=os.environ.get('CLIENT_DATA_DB'),
-                                                    port=os.environ.get('CLIENT_DATA_DB_PORT'))
-ip_ban_db = RedisDB(hostname=os.environ.get('IP_BAN_DB'), 
-                    port=os.environ.get('IP_BAN_DB_PORT'))
-ws_rate_limiter = WSRateLimiter(redis_host=os.environ.get('RATE_LIMIT_DB'), 
-                                redis_port=os.environ.get('RATE_LIMIT_DB_PORT'))
-
+cl_sess_db = RedisDB(hostname=os.getenv('CLIENT_SESS_DB'), 
+                                                    port=os.getenv('CLIENT_SESS_DB_PORT'))
+cl_auth_db = RedisDB(hostname=os.getenv('CLIENT_AUTH_DB'), 
+                                                    port=os.getenv('CLIENT_AUTH_DB_PORT'))
+cl_data_db = RedisDB(hostname=os.getenv('CLIENT_DATA_DB'),
+                                                    port=os.getenv('CLIENT_DATA_DB_PORT'))
+ip_ban_db = RedisDB(hostname=os.getenv('IP_BAN_DB'), 
+                    port=os.getenv('IP_BAN_DB_PORT'))
+ws_rate_limiter = WSRateLimiter(redis_host=os.getenv('RATE_LIMIT_DB'), 
+                                redis_port=os.getenv('RATE_LIMIT_DB_PORT'))
 broker = Broker()
-probe_broker = Broker()
+bot_broker = Broker()
 util_obj=Util()
-api_name = os.environ.get('API_NAME', 'umj-api-wflw')
+api_name = os.getenv('API_NAME', 'umj-api-wflw')
 auth_ping_counter = {}
-mntr_url=os.environ.get('SERVER_NAME')
-email_sender_handler = EmailSenderHandler(brevo_api_key=os.environ.get('BREVO_API_KEY'))
-cli = OneTimeSecretCli(os.environ.get('OTS_USER'), os.environ.get('OTS_KEY'), os.environ.get('REGION'))
+mntr_url=os.getenv('SERVER_NAME')
 auth_attempts={}
-max_auth_attempts=int(os.environ.get('MAX_AUTH_ATTEMPTS'))
+max_auth_attempts=int(os.getenv('MAX_AUTH_ATTEMPTS'))
 connected_probes={}
 
 # LLM System prompts
@@ -63,7 +51,7 @@ NET_ADMIN_INSTRUCTIONS = (
                             "If a user asks something unrelated to the provided tools or prompt, DO NOT answer the question. "
                             f"Instead, only reply with: '{REQUIRED_OUT_OF_SCOPE_MSG}.'. Do not give any other type of reply.\n"
                             "If you are asked about your architecture, provider, or model identity, only respond with: "
-                            f"'I am a locally hosted, open source {str(os.environ.get('OLLAMA_MODEL'))} model running on ollama.'\n\n"
+                            f"'I am a locally hosted, open source {str(os.getenv('OLLAMA_MODEL'))} model running on ollama.'\n\n"
                         )                    
 ANALYSIS_INSTRUCTIONS = (
     "Your primary task is to analyze the outputs of traceroutes, iperf speedtests, nmap network scans, SNMP statistics and network packet captures from tcpdump and tshark (cli version of wireshark) to identify, diagnose, troubleshoot and resolve network performance issues, outages and anomalies within current and historical network data. You will provide suggestions for network performance improvements only based on the specifications provided from the user prompt. If you are asked just to conduct an analysis always put 'SmartBot-Analysis:' before your response. If you are asked to remediate any issues found dring your analysis, use any of the applicable tools provided by the MCP servers. If the available tools are insufficient to perform remediation, reply with a detailed report of your findings, the steps you'd take to resolve any issues identified and what exact tools (command line network utilities, firewall/switch configurations etc.) and exact network command line tool commands you would use during the remediation process. Put 'SmartBot-Remediation: ' before your response. If you are asked to analyze if specific data within the network commandline utilities outputs meet certain criteria or KPI metrics specified by the user, put 'SmartBot-Alert:' before your response.\n"
@@ -110,68 +98,39 @@ async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False):
         if await ip_ban_db.upload_db_data(id=f"blocked_ip:{conn_obj.access_route[-1]}", data=ban_data) > 0:
             logger.warning(f"Max authentication attempts reached for {conn_obj.access_route[-1]}. Blocking further attempts.")
             auth_attempts.pop(conn_obj.access_route[-1], None)
-
-async def api_jwt_verification(usr: str, jwt_token: str, request: Request):
-    try:
-        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-        
-        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
-        logger.info(usr_data_dict)
-
-        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-        if api_data is None:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-            
-        api_data_dict = next(iter(api_data.values()))
-        logger.info(api_data_dict)
-
-        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-        logger.info(jwt_key)
-        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-        logger.info(decoded_token)
-
-        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand'):
-            raise InvalidTokenError()
-
-    except ExpiredSignatureError:
-        logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request)
-        abort(401)
-    except InvalidTokenError as e:
-        logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request)
-        abort(401)
-    except Exception as e:
-        return jsonify({f'error occurred: {e}'})
     
-async def usr_jwt_verification(sess_id: str, jwt_token: str, request: Request):
+async def jwt_verification(request: Request | Websocket, type: str = 'usr', api_key: str = None, sess_id: str = None, jwt_token: str = None):
     try:
-        if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-        
-        usr_sess_data = await cl_sess_db.get_all_data(match=f'*{sess_id}*')
-        logger.info(usr_sess_data)
-        usr_data_dict = next(iter(usr_sess_data.values()))
-        logger.info(usr_data_dict)
-
-        jwt_key = usr_data_dict.get(f'usr_jwt_secret')
-        logger.info(jwt_key)
-        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-        logger.info(decoded_token)
-
-        if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
-            await ip_blocker(conn_obj=request)
-            abort(401)
-
-        return usr_data_dict
-        
+        match type:
+            case 'prb':
+                api_data = await cl_data_db.get_all_data(match=f"{api_name}:dta:*")
+                if api_data is None:
+                    await ip_blocker(conn_obj=request)
+                    abort(401)
+                api_data_dict = next(iter(api_data.values()))
+                if jwt_token:
+                    jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
+                    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+                    if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') or bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
+                        await ip_blocker(conn_obj=request)
+                        abort(401)
+                else:
+                    if bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
+                        await ip_blocker(conn_obj=request)
+                        abort(401)
+                return api_data_dict
+            case 'usr':
+                if await cl_sess_db.get_all_data(match=f'*{sess_id}*', cnfrm=True) is False:
+                    await ip_blocker(conn_obj=request)
+                    abort(401)
+                usr_sess_data = await cl_sess_db.get_all_data(match=f'*{sess_id}*')
+                usr_data_dict = next(iter(usr_sess_data.values()))
+                jwt_key = usr_data_dict.get(f'usr_jwt_secret')
+                decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
+                if decoded_token.get('rand') != usr_data_dict.get(f'usr_rand'):
+                    await ip_blocker(conn_obj=request)
+                    abort(401)
+                return usr_data_dict
     except ExpiredSignatureError:
         logger.warning("JWT expired, need to refresh token")
         await ip_blocker(conn_obj=request)
@@ -182,278 +141,88 @@ async def usr_jwt_verification(sess_id: str, jwt_token: str, request: Request):
         return InvalidTokenError()
     except Exception:
         return jsonify("Error, occurred"), 400
-    
-async def prb_jwt_verification(usr: str, api_key: str, jwt_token: str, request: Request):
-    try:
-
-        if await cl_auth_db.get_all_data(match=f'*uid:{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request)
-            abort(401)
         
-        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
-        logger.info(usr_data_dict)
-
-        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-        if api_data is None:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-            
-        api_data_dict = next(iter(api_data.values()))
-        logger.info(api_data_dict)
-
-        jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
-        logger.info(jwt_key)
-        decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-        logger.info(decoded_token)
-
-        if decoded_token.get('rand') != api_data_dict.get(f'{api_name}_rand') or bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
-            raise InvalidTokenError()
-        
-    except ExpiredSignatureError:
-        logger.warning("JWT expired, need to refresh token")
-        await ip_blocker(conn_obj=request)
-        abort(401)
-    except InvalidTokenError as e:
-        logger.error(f"JWT invalid: {e}")
-        await ip_blocker(conn_obj=request)
-        abort(401)
-    except Exception as e:
-        return jsonify({f'error occurred: {e}'})
-    
-async def send_processed_data_to_probe(data_to_send):
-    if connected_probes.get(data_to_send["prb_id"]):
-        await connected_probes.get(data_to_send["prb_id"]).get("broker").publish(message=json.dumps(data_to_send))
-    else:
-        probe_conn_error = {
-            'alert_type': 'outage',
-            'site': data_to_send['site'],
-            'name': data_to_send['name'],
-            'prb_id': data_to_send['prb_id'],
-            'msg': f"Probe with ID {data_to_send['prb_id']} is not connected. Verify network connectivity at the site or resource the probe is located at. Unable to deliver task.",
-            'timestamp': datetime.now(tz=timezone.utc)
-        }
-
-    alert_id = f"alert:{probe_conn_error['prb_id']}:{probe_conn_error['alert_type']}:{probe_conn_error['timestamp']}"
-
-    probe_conn_error['id'] = alert_id
-
-    if await cl_data_db.upload_db_data(id=alert_id, data=probe_conn_error) > 0:
-        logger.info(f"Task result data uploaded successfully with id: {alert_id}")
-
-    await broker.publish(message=json.dumps(probe_conn_error))
-
-async def smartbot_processing(payload: dict, message: dict, headers: dict):
-    async with httpx.AsyncClient() as client:
-        smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-
-        logger.info(smmry_resp.json())
-
-        summary_msg = smmry_resp.json()
-
-        output = summary_msg['output_text']
-
-        if connected_probes.get(message['prb_id']).get('tool_instructions') is None:
-            connected_probes.get(message['prb_id'])['tool_instructions'] = summary_msg['tool_instructions']
-
-        smartbot_alert = None
-
-        smartbot_suggestion = await run_sync(lambda: util_obj.split_text_by_keyword(text=output, keyword='SmartBot-Remediation', cnfrm=True))()
-        smartbot_analysis = await run_sync(lambda: util_obj.split_text_by_keyword(text=output, keyword='SmartBot-Analysis', cnfrm=True))()
-        smartbot_alert = await run_sync(lambda: util_obj.split_text_by_keyword(text=output, keyword='SmartBot-Alert', cnfrm=True))()
-
-        if smartbot_suggestion is not None:
-            smartbot_alert = {
-                'llm_output': smartbot_suggestion,
-                'alerts': message['alerts'],
-                'oper': 'alert'
-                        }
-
-            await send_processed_data_to_probe(data_to_send=smartbot_alert)
-
-        if smartbot_analysis is not None:
-            smartbot_alert = {
-                'llm_output': smartbot_analysis,
-                'alerts': message['alerts'],
-                'oper': 'alert'
-                        }
-
-            await send_processed_data_to_probe(data_to_send=smartbot_alert)
-
-        if smartbot_alert is not None:
-            smartbot_alert = {
-                'llm_output': smartbot_alert,
-                'alerts': message['alerts'],
-                'oper': 'alert'
-                        }
-            
-            now = datetime.now(tz=timezone.utc)
-            probe_outage_data = {'alert_type': 'smartbot',
-                                'site': message['site'],
-                                'name': message['name'],
-                                'prb_id': message['prb_id'],
-                                'msg': smartbot_alert,
-                                'status': 'active',
-                                'timestamp': now.isoformat()}
-                    
-            alert_id = f"alert:{message['prb_id']}:{probe_outage_data['alert_type']}:{now.isoformat()}"
-
-            probe_outage_data['id'] = alert_id
-                    
-            if await cl_data_db.upload_db_data(id=alert_id, data=probe_outage_data) > 0:
-                logger.info(f"Probe outage alert data uploaded successfully with id: {alert_id}")
-            
-            await send_processed_data_to_probe(data_to_send=smartbot_alert)
-
-        if smartbot_suggestion is None and smartbot_analysis is None and smartbot_alert is None:
-
-            output_message = ""
-            logger.info(f"Request result = {output['output_text']}\n")
-            logger.info(type(output['output_text']))
-
-            data = json.loads(output['output_text'])
-
-            for item in data:
-                net_cmd_output = item['output'][1]
-                logger.info(f"Net command output: {net_cmd_output}")
-                decoded_output = net_cmd_output.encode('utf-8').decode('unicode_escape')
-                lines = decoded_output.split('\n')
-
-                for i, line in enumerate(lines):
-                    net_cmd_data = f'{line}\n'
-                    output_message+=net_cmd_data
-
-            smartbot_alert = {
-                'llm_output': output_message,
-                'alerts': message['alerts'],
-                'oper': 'alert'
-            }
-
-            await send_processed_data_to_probe(data_to_send=smartbot_alert)
-
-async def smartbot_data_generator(message: dict):
-    headers = {'content-type': 'application/json'}
-
-    task_msg = (
-                        f"{message['tool_output']}"
-                        + "\n\n"
-                        f"{message['prompt']}"
-                    )
-                                    
-    analysis_instructions = (
-                        NET_ADMIN_INSTRUCTIONS
-                        + "\n\n"
-                        + ANALYSIS_INSTRUCTIONS
-                        + "\n\n"
-                        + NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD
-                    )
-
-    task_payload = {
-                        'model': os.environ.get('OLLAMA_MODEL'),
-                        'tools':[
-                            {
-                                "type": "mcp",
-                                "server_label": "netadmin_mcp_server",
-                                "server_url": f"{message['url']}",
-                                "require_approval": "never",
-                                    },
-                                ],
-                        'usr_input': task_msg,
-                        'instructions': analysis_instructions,
-                        'api_key': message['prb_api_key']
-                    }
-
-    if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
-                        task_payload['tool_instructions'] = connected_probes[message['prb_id']]['tool_instructions']
-
-    await smartbot_processing(payload=task_payload, message=message, headers=headers)
-
-async def _receive_user() -> None:
+async def _receive_telegram_bot() -> None:
     while True:
         message = await websocket.receive()
         logger.debug(message)
         message = json.loads(message)
+        is_authorized = await util_obj.check_id(message.get('telegram_id'))
+
+        if is_authorized is False:
+            logger.warning(f"Unauthorized Telegram ID {message.get('telegram_id')} attempted to connect to bot websocket.")
+            return
+
         action=message['act']
         if action:
             match action:
-                case 'chat':
-                    usr_msg_data = {
-                        "from": message["from"],
-                        "msg": message["msg"],
-                        "url": message["url"],
+                case 'query':
+                    payload = {
+                        "query": message['prompt'],
+                        "n_results": 5,
+                        "filter": {"tool_type": "nmap"}
                     }
+                    status, response = await util_obj.make_http_request(headers={'content-type': 'application/json'}, url=f"smartbot:8000/v1/query", data=payload, timeout=int(os.getenv('REQUEST_TIMEOUT')))
 
-                    logger.info(usr_msg_data)
-                    
-                    if await cl_data_db.get_all_data(match=f'*uid:{message["usr"]}*', cnfrm=True) is True:
+                case 'exec':
+                    final_output = ""
+                    prompt, prb_id = await run_sync(lambda: util_obj.split_text_by_keyword(message["prompt"].lower(), keyword="prb_id:", cnfrm=True))()
+
+                    if prb_id is None:
+                        await bot_broker.publish(message="Probe ID not specified. Please specify the probe ID by including 'prb_id:<ID>' at the end of your request.")
+
+                    if await cl_data_db.get_all_data(match=f'*{prb_id}*', cnfrm=True) is True:
+                        selected_probe = await cl_data_db.get_all_data(match=f'*{prb_id}*')
+                        selected_probe_dict = next(iter(selected_probe.values()))
+
                         agent_msg_data = {}
                         
-                        api = message['api_key']
+                        api = selected_probe_dict.get('prb_api_key')
 
-                        processing_msg_data = {
-                            "from": "agent",
-                            "msg": "Give me a minute, I'm thinking about your request. I'll get back to you in a few...",
-                            "url": message["url"],
-                            "usr_id": message['usr_id']
-                        }
-
-                        await broker.publish(message=json.dumps(processing_msg_data))
-
-                        tool_request, analysis_request = await run_sync(lambda: util_obj.split_analysis(text=message['msg']))()
+                        tool_request, analysis_request = await run_sync(lambda: util_obj.split_text_by_keyword(prompt, keyword="analysis:"))()
 
                         logger.info(f'Tool request: {tool_request}, Analysis request: {analysis_request}')
                         saved_tools_instructions = ""
 
-                        if connected_probes.get(message['prb_id'])['tool_instructions'] is not None:
-                            saved_tools_instructions = connected_probes.get(message['prb_id']).get('tool_instructions')
+                        if connected_probes.get(prb_id)['tool_instructions'] is not None:
+                            saved_tools_instructions = connected_probes.get(prb_id).get('tool_instructions')
 
                         payload = {
-                                'model': os.environ.get('OLLAMA_MODEL'),
+                                'model': os.getenv('OLLAMA_MODEL'),
                                 'tools':[
                                         {
                                             "type": "mcp",
                                             "server_label": "netadmin_mcp_server",
-                                            "server_url": f"{message['url']}",
+                                            "server_url": str(selected_probe_dict.get('url')),
                                             "require_approval": "never",
                                         },
                                     ],
                                 'usr_input':f"{tool_request}",
                                 'instructions': NET_ADMIN_INSTRUCTIONS,
                                 'api_key': api,
-                                'user': message['usr'],
+                                'chat_id': message['telegram_id'],
                             }
-
-                        async with httpx.AsyncClient() as client:
-                            if saved_tools_instructions != "":
-                                payload['tool_instructions'] = saved_tools_instructions
-
-                            headers = {'content-type': 'application/json'}
-                            tool_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-                            tool_msg = tool_resp.json()  
-
-                            if saved_tools_instructions == "":
-                                connected_probes.get(message['prb_id'])['tool_instructions'] = tool_msg['tool_instructions']
-
-                            logger.info(tool_msg['output_text'])
-
-                            error_check = tool_msg['output_text']
                         
-                            if error_check == REQUIRED_OUT_OF_SCOPE_MSG:
+                        status, tool_resp = await util_obj.make_http_request(headers={'content-type': 'application/json'}, url=f"{os.getenv('OLLAMA_PROXY_URL')}/chat", data=payload, timeout=int(os.getenv('REQUEST_TIMEOUT')))
+
+                        if status is True:
+                            if saved_tools_instructions == "":
+                                connected_probes.get(prb_id)['tool_instructions'] = tool_resp['tool_instructions']
+
+                            if tool_resp['output_text'] == REQUIRED_OUT_OF_SCOPE_MSG:
                                 err_msg_data = {
                                     "from": "agent",
                                     "msg": REQUIRED_OUT_OF_SCOPE_MSG,
-                                    "url": message["url"],
+                                    "url": selected_probe_dict.get('url'),
                                     "usr_id": message['usr_id']
                                 }
-                                await broker.publish(message=json.dumps(err_msg_data))
+                                await bot_broker.publish(message=json.dumps(err_msg_data))
                             else:
                                 output_message = ""
-                                logger.info(f"Request result = {tool_msg['output_text']}\n")
-                                logger.info(type(tool_msg['output_text']))
+                                logger.info(f"Request result: {tool_resp['output_text']}\n")
+                                logger.info(type(tool_resp['output_text']))
 
-                                data = json.loads(tool_msg['output_text'])
+                                data = json.loads(tool_resp['output_text'])
 
                                 for item in data:
                                     net_cmd_output = item['output'][1]
@@ -483,41 +252,35 @@ async def _receive_user() -> None:
                                     payload['usr_input'] = analysis_msg
                                     payload['instructions'] = analysis_instructions
                                     analysis_payload = payload.copy()
-                                    if connected_probes.get(message['prb_id']).get('tool_instructions') != "":
-                                        analysis_payload['tool_instructions'] = connected_probes.get(message['prb_id']).get('tool_instructions')
+                                    if connected_probes.get(prb_id).get('tool_instructions') != "":
+                                        analysis_payload['tool_instructions'] = connected_probes.get(prb_id).get('tool_instructions')
 
-                                    smmry_resp = await client.post(f"{os.environ.get('OLLAMA_PROXY_URL')}/multitools", json=analysis_payload, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
-                                    summary_msg = smmry_resp.json()
-                                    final_output = ""
-                                    final_output+=f'{output_message}\n\n'
-                                    final_output+=summary_msg['output_text']
-                                    logger.info(final_output)
-                                    agent_msg_data['query_type'] = 'tool_analysis'
+                                    analysis_status, analysis_resp = await util_obj.make_http_request(headers={'content-type': 'application/json'}, url=f"{os.getenv('OLLAMA_PROXY_URL')}/chat", data=analysis_payload, timeout=int(os.getenv('REQUEST_TIMEOUT')))   
+
+                                    if analysis_status is True:
+                                        final_output+=f'{output_message}\n\n'
+                                        final_output+=analysis_resp['output_text']
+                                        logger.info(final_output)
+                                        agent_msg_data['query_type'] = 'tool_analysis'
                                 else:
                                     final_output = output_message
                                     agent_msg_data['query_type'] = 'tool'      
                                     
                                 time_stamp = datetime.now(timezone.utc).isoformat()
-                                chat_data_id = f"chat:{message['prb_id']}:{message['usr']}:{time_stamp}"
+                                chat_data_id = f"chat:{prb_id}:{message['telegram_id']}:{time_stamp}"
                                 chat_data = {'id': chat_data_id,
                                             'usr_msg': message["msg"],
                                             'agent_msg': final_output,
-                                            'prb_id': message['prb_id'],
+                                            'prb_id': prb_id,
                                             'timestamp': time_stamp,
                                             'type': agent_msg_data['query_type'],
-                                            'tool_calls': tool_msg['tool_calls'],
-                                            'tool_outputs': tool_msg['tool_outputs'],
+                                            'tool_calls': tool_resp['tool_calls'],
+                                            'tool_outputs': tool_resp['tool_outputs'],
                                             }
                                 if await cl_data_db.upload_db_data(id=chat_data_id, data=chat_data) > 0:
                                     logger.info(f"Chat data uploaded successfully with id: {chat_data_id}")
                                 
-                                agent_msg_data['from'] = "agent"
-                                agent_msg_data['msg'] = final_output
-                                agent_msg_data['url'] = message["url"]
-                                agent_msg_data['usr_id'] = message['usr_id']
-                                agent_msg_data['prb_id'] = message['prb_id']
-                                agent_msg_data['final_output'] = True
-                                await broker.publish(message=json.dumps(agent_msg_data))
+                                await bot_broker.publish(message=final_output)
 
 async def _receive_probe() -> None:
     while True:
@@ -527,9 +290,6 @@ async def _receive_probe() -> None:
         action=message['act']
         if action:
             match action:
-                case 'smartbot':
-                    logger.info(f"Received flow LLM message: {message}.")
-                    await smartbot_data_generator(message=message)
                 case 'heart_beat':
                     logger.debug(f"Received probe {message['sess_id']} heartbeat: {message}")
                     global connected_probes
@@ -560,45 +320,39 @@ async def _receive_probe() -> None:
                             result = await cl_data_db.del_obj(key=message['id'])
                             if result is not None:
                                 logger.info(f"Task data deleted successfully with id: {message['id']}")
-                    if message['job_type'] == 'flow':
-                        if await cl_data_db.upload_db_data(id=message['flow_id'], data={'comment': message['comment']}) > 0:
-                            logger.info(f"Flow comment updated successfully with id: {message['flow_id']}")
                     message.pop('act')
                     message.pop('storage_opt')
                     message['alert_type'] = 'task_config_confirmation'
                     message['msg'] = f"Task '{message['job_type']}' was configured at probe '{message['prb_id']}' with output: {message['task_output']}"
 
                     await broker.publish(message=json.dumps(message))
-
-                case "task_rslt":
-                    message['alert_type'] = 'task_result'
-                    message['msg'] = f"Task '{message['task_type']}' executed at probe '{message['prb_id']}' with output: {message['task_output']}"
-                    task_result_id = f"task:result:{message['prb_id']}:{message['task_type']}:{message['timestamp']}"
-                    message['id'] = task_result_id
-
-                    if await cl_data_db.upload_db_data(id=task_result_id, data=message) > 0:
-                        logger.info(f"Task result data uploaded successfully with id: {task_result_id}")
-                        await broker.publish(message=json.dumps(message))
-
-                case 'netmap_rslt':
-                    message['id'] = f"netmap:result:{message['prb_id']}"
-                    if await cl_data_db.get_all_data(match=f"{message['id']}:devices", cnfrm=True) is True:
-                        if await cl_data_db.del_obj(key=f"{message['id']}:devices") is not None:
-                            logger.info(f"Existing network map device data deleted successfully with id: {message['id']}:devices")
-                            if await cl_data_db.upload_db_data(id=f"{message['id']}:devices", data=message['map']) > 0:
-                                logger.info(f"Network map device data uploaded successfully with id: {message['id']}:devices")
+                case "smartbot":
+                    if isinstance(message, list):
+                        payload = {'documents': message}
                     else:
-                        if await cl_data_db.upload_db_data(id=f"{message['id']}:devices", data=message['map']) > 0:
-                            logger.info(f"Network map device data uploaded successfully with id: {message['id']}:devices")
+                        payload = message 
+                    status, ingested_data = await util_obj.make_http_request(headers={'content-type': 'application/json'}, url=f"smartbot:8000/v1/process", data=payload, timeout=int(os.getenv('REQUEST_TIMEOUT')))
 
-                    if await cl_data_db.upload_db_data(id=f"{message['id']}:{message['timestamp']}", data=message) > 0:
-                        logger.info(f"Network map result data uploaded successfully with id: {message['id']}")
-                    await send_processed_data_to_probe(data_to_send=message)
+                    if status is True: 
+                        if await cl_data_db.upload_db_data(id=ingested_data.get('db_id'), data=ingested_data.get('data')) > 0:
+                            logger.info(f"SmartBot message data uploaded successfully with id: {ingested_data.get('db_id')}")
+
+                        logger.info("SmartBot message ingested successfully.")
+
+                        #await broker.publish(message=json.dumps(ingested_data.get('data')))
+                        await connected_probes[message['prb_id']]['broker'].publish(message=json.dumps(ingested_data.get('data')))
 
                 case _:
                     pass
         else:
             pass
+
+async def _receive_user() -> None:
+    while True:
+        message = await websocket.receive()
+        logger.debug(message)
+        message = json.loads(message)
+        await broker.publish(message=json.dumps(message))
 
 async def session_watchdog(sess_id: str, check_interval: float = 5.0):
     logger.info(f"Starting session watchdog for {sess_id}")
@@ -648,8 +402,7 @@ async def session_watchdog(sess_id: str, check_interval: float = 5.0):
                                             'site': probe_data_dict.get('site'),
                                             'name': probe_data_dict.get('name'),
                                             'prb_id': sess_id,
-                                            'msg': f'Probe {probe_data_dict.get("name")} (ID: {sess_id}) is offline or a network outage has occurred at the site or resource the probe is located at.',
-                                            'status': 'active',
+                                            'status': 'offline',
                                             'timestamp': now.isoformat()}
                     
                     alert_id = f"alert:{sess_id}:{probe_outage_data['alert_type']}:{now.isoformat()}"
@@ -695,7 +448,20 @@ async def check_ip_ws():
             await websocket.close()
         except RuntimeError:
             return None
-        
+
+@app.websocket("/v1/api/core/bot/ws")
+@rate_exempt
+async def bot_ws():
+    try:
+        await websocket.accept()
+        asyncio.ensure_future(_receive_telegram_bot())
+        async for message in bot_broker.subscribe():
+            await websocket.send(message)
+    except Exception as e:
+        logger.error(f"Error in bot_ws: {e}")
+    except asyncio.CancelledError:
+        logger.info("bot_ws cancelled")
+
 @app.websocket("/v1/api/core/channels/probe/heartbeat/<string:probe_id>")
 @rate_exempt
 async def heartbeat(probe_id):
@@ -706,7 +472,7 @@ async def heartbeat(probe_id):
 
         usr_sess_id = websocket.args.get('sess_id') if websocket.args.get('sess_id') is not None else None
 
-        if usr_sess_id is not None and await cl_sess_db.get_all_data(match=f'*{usr_sess_id}*', cnfrm=True) is False:
+        if usr_sess_id is not None and usr_sess_id not in auth_ping_counter:
             await ip_blocker(conn_obj=websocket, auto_ban=True)
             await websocket.close()
 
@@ -775,41 +541,18 @@ async def ws():
     try:
         if websocket.cookies.get("access_token") is not None:
             id = None
-            user = None
-
             if websocket.args.get('id') is not None:
                 id = websocket.args.get('id')
-            
-            if websocket.args.get('amp;unm') is not None:
-                user = websocket.args.get('amp;unm')
-
             jwt_token = websocket.cookies.get("access_token")
             client_connection = jwt_token
-
+            
             if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is False:
                 await ip_blocker(conn_obj=websocket)
                 abort(401)
 
             if id is not None:
-                if await cl_auth_db.get_all_data(match=f'*uid:{user}*', cnfrm=True) and await cl_sess_db.get_all_data(match=f'{id}', cnfrm=True) is True:
-                                
-                    account_data = await cl_sess_db.get_all_data(match=f'*{id}*')
-                    if account_data is None:
-                        await ip_blocker(conn_obj=websocket)
-                        abort(401)
-                    else:
-                        logger.info(account_data)
-                        sub_dict = next(iter(account_data.values()))
-                        logger.info(sub_dict)
-
-                    jwt_key = sub_dict.get('usr_jwt_secret')
-                    logger.info(jwt_key)
-                    decoded_token = jwt.decode(jwt=jwt_token, key=jwt_key , algorithms=["HS256"])
-                    logger.info(decoded_token)
-
-                    if decoded_token.get('rand') != sub_dict.get('usr_rand'):
-                        raise InvalidTokenError()
-                            
+                await jwt_verification(sess_id=id, jwt_token=jwt_token, request=websocket, type='usr')
+                              
             logger.info('websocket authentication successful')
             await websocket.accept()
 
@@ -858,43 +601,16 @@ async def ws():
 async def prbinit():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
     usr = request.args.get('usr')
-
     try:
         if not api_key or not usr:
             await ip_blocker(conn_obj=request)
             abort(401)
-
-        if await cl_auth_db.get_all_data(match=f'*{usr}*', cnfrm=True) is False:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-        
-        usr_data = await cl_auth_db.get_all_data(match=f'*uid:{usr}*')
-        logger.info(usr_data)
-        usr_data_dict = next(iter(usr_data.values()))
-        logger.info(usr_data_dict)
-
-        api_data = await cl_data_db.get_all_data(match=f"api_dta:{usr_data_dict.get('db_id')}")
-
-        if api_data is None:
-            return jsonify(error="Generate your umjiniti-core API key."), 404
-            
-        api_data_dict = next(iter(api_data.values()))
-        logger.info(api_data_dict)
-    
-        if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
-            await ip_blocker(conn_obj=request)
-            abort(401)
-        
+        api_data_dict = await jwt_verification(request=request, type='prb', api_key=api_key)
         api_jwt_key = api_data_dict.get(f'{api_name}_jwt_secret')
         api_rand = api_data_dict.get(f'{api_name}_rand')
         api_id = api_data_dict.get(f'{api_name}_id')
-        
-        # Generate JWT to authenticate probe sessions with monitor backend
         jwt_token = util_obj.generate_ephemeral_token(id=api_id, secret_key=api_jwt_key, rand=api_rand, type='prb')
-            
-        # Build response with cookie
-        response = Response(response='Probe Token Success', status=200)
-            
+        response = Response(response='Probe Token Success', status=200)  
         response.set_cookie(
             key='access_token',
             value=jwt_token,
@@ -903,7 +619,6 @@ async def prbinit():
             samesite="Strict",
             max_age=3600  # 1 hour, adjust as needed
         )
-            
         return response
     except Exception():
         return jsonify({'error': 'Error occurred'}), 400
@@ -924,7 +639,7 @@ async def prbenroll():
     if not site:
         site = 'default'
 
-    await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
+    await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
 
     # Adopt new probe
     adopted_probe_data = await request.get_json()
@@ -955,9 +670,9 @@ async def prbexec(prb_id, tool, command):
         abort(401)
 
     if api_key and not sess_id:
-        await prb_jwt_verification(usr=usr, jwt_token=jwt_token, request=request, api_key=api_key)
+        await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
     else:
-        await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
+        await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
 
     data = await request.get_json()
 
@@ -970,21 +685,13 @@ async def prbexec(prb_id, tool, command):
     prb_data_dict = next(iter(prb_data.values()))
     logger.info(prb_data_dict)
 
-    async with httpx.AsyncClient() as client:
-
-        headers = {'content-type': 'application/json',
+    headers = {'content-type': 'application/json',
                    'x-api-key': prb_data_dict.get('prb_api_key')
                    }
-                            
-        exec_resp = await client.post(f"{prb_data_dict.get('url')}/v1/api/{tool}/{command}", json=data, headers=headers, timeout=int(os.environ.get('REQUEST_TIMEOUT')))
+    
+    url = f"{prb_data_dict.get('url')}/v1/api/{tool}/{command}"
 
-        exec_resp_data = exec_resp.json()
-        logger.info(exec_resp_data)
-
-        if exec_resp.status_code == 200:
-            return jsonify({'output': exec_resp_data}), 200
-        else:
-            return jsonify({'error': exec_resp_data}), 400
+    return jsonify(), 500 if await util_obj.make_http_request(headers=headers, url=url, data=data, timeout=int(os.getenv('REQUEST_TIMEOUT'))) is False else 200
     
 @app.route('/v1/api/core/probes/delete', methods=['POST'])
 async def prbdelete():
@@ -995,7 +702,7 @@ async def prbdelete():
         await ip_blocker(conn_obj=request)
         abort(401)
 
-    await api_jwt_verification(usr=usr, jwt_token=jwt_token, request=request)
+    await jwt_verification(jwt_token=jwt_token, request=request, type='prb')
 
     data = await request.get_json()
     logger.info(data)
@@ -1009,105 +716,6 @@ async def prbdelete():
         return jsonify('Probe deletion failed'), 400
 
     return jsonify('Probe deleted'), 200
-        
-@app.route('/v1/api/core/user/resetapi', methods=['POST'])
-async def resetapi():
-    jwt_token = request.cookies.get("access_token")
-    sess_id = request.args.get('sess_id')
-
-    if not jwt_token or not sess_id:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    usr_data_dict = await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
-
-    if await cl_data_db.del_obj(key=f"api_dta:{usr_data_dict['db_id']}") is not None:
-
-        api_id = util_obj.key_gen(size=10) 
-
-        new_api_key = util_obj.generate_api_key()
-
-        updated_api_data = {api_name: bcrypt.hash(new_api_key),
-                            f"{api_name}_id": api_id,
-                            f"{api_name}_rand": secrets.token_urlsafe(500),
-                            f"{api_name}_jwt_secret": secrets.token_urlsafe(500)
-                        }
-   
-        if await cl_data_db.upload_db_data(id=f"api_dta:{usr_data_dict['db_id']}", data=updated_api_data) > 0:
-            link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
-
-            html_snippet = f"""<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">
-                        <p>Hello,</p>
-                        <p><strong>umjiniti</strong> API key for user <strong>{usr_data_dict.get('unm')}</strong> has been reset.</p>
-                        <p>You can retrieve the API key using the following one-time secret link. Note that this link will expire after a single use.</p>
-                        <p>API Key Retrieval Link: <a href="{link}">{link}</a></p>
-                        <p>Thank you,<br/>umjiniti Team</p>
-
-                        </div>"""
-            send_result = await run_sync(lambda: email_sender_handler.send_transactional_email(sender={'name': 'umjiniti Admin', 'email': os.environ.get('BREVO_SENDER_EMAIL')},
-                                                                                 to=[{"name": usr_data_dict.get('unm'), "email": usr_data_dict.get('eml')}],
-                                                                                 subject=f"umjiniti-core API Key Reset for {usr_data_dict.get('unm')}",
-                                                                                 html_content=html_snippet
-                                                                                 ))()
-
-            logger.info(f"API key reset email send result: {send_result}")
-            return jsonify('API key reset successful. Check your email for the new API key.')
-        else:
-            return jsonify('API key reset failed'), 400
-    
-@app.route('/v1/api/core/user/createapi', methods=['POST'])
-async def createapi():
-    jwt_token = request.cookies.get("access_token")
-    sess_id = request.args.get('sess_id')
-
-    logger.info(f"Create API JWT: {jwt_token}, SESS: {sess_id}")
-
-    if not jwt_token or not sess_id:
-        await ip_blocker(conn_obj=request)
-        abort(401)
-
-    usr_data_dict = await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
-
-    api_id = util_obj.key_gen(size=10)
-    new_api_key = util_obj.generate_api_key()
-        
-    updated_api_data = {api_name: bcrypt.hash(new_api_key),
-                            f"{api_name}_id": api_id,
-                            f"{api_name}_rand": secrets.token_urlsafe(500),
-                            f"{api_name}_jwt_secret": secrets.token_urlsafe(500)
-                        }
-        
-    logger.info(usr_data_dict['db_id'])
-
-    if await cl_data_db.upload_db_data(id=f"api_dta:{usr_data_dict['db_id']}", data=updated_api_data) > 0:
-        link = cli.create_link(secret=new_api_key, ttl=int(os.environ.get('OTS_TTL')))
-
-        contact_data = {"LASTNAME": usr_data_dict.get('lname'),
-                                "FIRSTNAME": usr_data_dict.get('fname'),
-                                }
-        new_contact_result = await run_sync(lambda: email_sender_handler.add_contact(email=usr_data_dict.get('eml'),
-                                                                ext_id=usr_data_dict.get('db_id'), attributes=contact_data
-                                                            ))()
-        logger.info(f"New contact creation result: {new_contact_result}")
-                
-        html_snippet = f"""<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">
-                        <p>Hello,</p>
-                        <p>A new <strong>umjiniti</strong> API key has been generated for user <strong>{usr_data_dict.get('unm')}</strong>.</p>
-                        <p>You can retrieve the API key using the following one-time secret link. Note that this link will expire after a single use.</p>
-                        <p>API Key Retrieval Link: <a href="{link}">{link}</a></p>
-                        <p>Thank you,<br/>umjiniti Team</p>
-
-                        </div>"""
-        send_result = await run_sync(lambda: email_sender_handler.send_transactional_email(sender={'name': 'umjiniti Admin', 'email': os.environ.get('BREVO_SENDER_EMAIL')},
-                                                                                 to=[{"name": usr_data_dict.get('unm'), "email": usr_data_dict.get('eml')}],
-                                                                                 subject=f"New umjiniti-core API Key Generated for {usr_data_dict.get('unm')}",
-                                                                                 html_content=html_snippet
-                                                                                 ))()
-        logger.info(type(send_result))
-        logger.info(f"API key creation email send result: {send_result}")
-        return jsonify('API key creation successful. Check your email for the new API key.'), 200       
-    else:
-        return jsonify('API key creation failed'), 400
 
 @app.route('/v1/api/core/user/alerts', methods=['POST'])
 async def alerts():
@@ -1118,7 +726,7 @@ async def alerts():
         await ip_blocker(conn_obj=request)
         abort(401)
     
-    await usr_jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
+    await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request, type='usr')
 
     data = await request.get_json()
     logger.info(data)

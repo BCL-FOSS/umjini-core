@@ -1,17 +1,9 @@
-import os
-import logging
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
-import ollama
-import httpx
 import json
 from typing import List, Dict, Any, Optional
-import asyncio
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+from smartbot.init_app import call_mcp, logger, chat_with_ollama
 
 class RAGEngine:
     def __init__(
@@ -19,7 +11,6 @@ class RAGEngine:
         collection_name: str = "network_analysis",
         embedding_model: str = "all-MiniLM-L6-v2",
         ollama_model: str = "qwen2.5:7b",
-        chromadb_path: str = "./chromadb_data",
         mcp_server_url: str = None
     ):
         """
@@ -29,7 +20,6 @@ class RAGEngine:
             collection_name: ChromaDB collection name
             embedding_model: HuggingFace model for embeddings
             ollama_model: Ollama model for LLM inference
-            chromadb_path: Path to persist ChromaDB data
             mcp_server_url: URL of the MCP server for tool execution
         """
         self.collection_name = collection_name
@@ -39,24 +29,19 @@ class RAGEngine:
         # Initialize embedding model
         logger.info(f"Loading embedding model: {embedding_model}")
         self.embedding_model = SentenceTransformer(embedding_model)
-        
-        # Initialize ChromaDB
-        logger.info(f"Initializing ChromaDB at: {chromadb_path}")
-        self.chroma_client = chromadb.PersistentClient(
-            path=chromadb_path,
-            settings=Settings(anonymized_telemetry=False)
-        )
-        
-        # Get or create collection
+
+    async def init_chroma_db(self):
+        self.chroma_client = await chromadb.AsyncHttpClient(host="localhost", port=6000)
+       
         try:
-            self.collection = self.chroma_client.get_collection(name=collection_name)
-            logger.info(f"Loaded existing collection: {collection_name}")
+            self.collection = await self.chroma_client.get_collection(name=self.collection_name)
+            logger.info(f"Loaded existing collection: {self.collection_name}")
         except Exception:
-            self.collection = self.chroma_client.create_collection(
-                name=collection_name,
+            self.collection = await self.chroma_client.create_collection(
+                name=self.collection_name,
                 metadata={"description": "Network tool analysis and anomaly detection"}
             )
-            logger.info(f"Created new collection: {collection_name}")
+            logger.info(f"Created new collection: {self.collection_name}")
     
     def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding vector for text"""
@@ -80,22 +65,17 @@ class RAGEngine:
         Returns:
             bool: Success status
         """
-        try:
-            embedding = self.generate_embedding(content)
+        embedding = self.generate_embedding(content)
             
-            self.collection.add(
+        await self.collection.add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
                 metadatas=[metadata]
             )
             
-            logger.info(f"Ingested document: {doc_id} (tool: {metadata.get('tool_type')})")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error ingesting document {doc_id}: {e}", exc_info=True)
-            return False
+        logger.info(f"Ingested document: {doc_id} (tool: {metadata.get('tool_type')})")
+        return True
     
     async def ingest_batch(
         self,
@@ -128,7 +108,7 @@ class RAGEngine:
         
         if ids:
             try:
-                self.collection.add(
+                await self.collection.add(
                     ids=ids,
                     embeddings=embeddings,
                     documents=contents,
@@ -159,25 +139,24 @@ class RAGEngine:
         Returns:
             Dict with results
         """
-        try:
-            query_embedding = self.generate_embedding(query_text)
+        query_embedding = self.generate_embedding(query_text)
             
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=n_results,
-                where=where_filter
-            )
+        results = await self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            where=where_filter
+        )
+
+        if not results:
+            logger.info("No similar documents found")
+            return {"query": query_text, "results": None, "count": 0}
             
-            return {
-                "query": query_text,
-                "results": results,
-                "count": len(results['ids'][0]) if results['ids'] else 0
-            }
-            
-        except Exception as e:
-            logger.error(f"Error querying similar documents: {e}", exc_info=True)
-            return {"query": query_text, "results": None, "error": str(e)}
-    
+        return {
+            "query": query_text,
+            "results": results,
+            "count": len(results['ids'][0]) if results['ids'] else 0
+        }
+       
     async def analyze_with_llm(
         self,
         context: str,
@@ -204,17 +183,11 @@ class RAGEngine:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}"}
         ]
-        
-        try:
-            response = ollama.chat(
-                model=self.ollama_model,
-                messages=messages
-            )
-            return response['message']['content']
-            
-        except Exception as e:
-            logger.error(f"Error in LLM analysis: {e}", exc_info=True)
-            return f"Error: {str(e)}"
+        response = await chat_with_ollama(conversation=messages, model=self.ollama_model)
+        if not response:
+            logger.error("LLM analysis failed: No response received")
+            return None
+        return response
     
     async def rag_query(
         self,
@@ -346,7 +319,7 @@ class RAGEngine:
     async def decide_action(
         self,
         anomaly_result: Dict[str, Any],
-        available_tools: List[str]
+        available_tools: str
     ) -> Dict[str, Any]:
         """
         Decide what action to take based on anomaly detection
@@ -366,7 +339,7 @@ class RAGEngine:
         Severity: {severity}
         Anomalies Found: {json.dumps(anomalies, indent=2)}
         
-        Available MCP Tools: {', '.join(available_tools)}
+        Available MCP Tools: \n{available_tools}\n\n
         
         Decide:
         1. Should an alert be sent? (yes/no)
@@ -408,70 +381,11 @@ class RAGEngine:
         
         return decision_data
     
-    async def execute_mcp_action(
-        self,
-        tool_name: str,
-        params: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Execute an action via MCP server
-        
-        Args:
-            tool_name: MCP tool name
-            params: Tool parameters
-        
-        Returns:
-            Dict with execution result
-        """
-        if not self.mcp_server_url:
-            return {"error": "MCP server URL not configured"}
-        
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # Initialize MCP server if needed
-                init_response = await client.post(
-                    self.mcp_server_url,
-                    headers={'content-type': 'application/json'},
-                    json={
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "initialize",
-                        "params": {
-                            "protocolVersion": "2024-11-05",
-                            "capabilities": {},
-                            "clientInfo": {"name": "rag-network-agent", "version": "1.0.0"}
-                        }
-                    }
-                )
-                
-                # Call the tool
-                tool_response = await client.post(
-                    self.mcp_server_url,
-                    headers={'content-type': 'application/json'},
-                    json={
-                        "jsonrpc": "2.0",
-                        "id": 2,
-                        "method": "tools/call",
-                        "params": {
-                            "name": tool_name,
-                            "arguments": params
-                        }
-                    }
-                )
-                
-                result = tool_response.json()
-                logger.info(f"MCP tool '{tool_name}' executed successfully")
-                return result
-                
-        except Exception as e:
-            logger.error(f"Error executing MCP action {tool_name}: {e}", exc_info=True)
-            return {"error": str(e)}
-    
     async def process_and_act(
         self,
         content: str,
         metadata: Dict[str, Any],
-        available_tools: List[str],
+        available_tools: str,
         auto_execute: bool = False
     ) -> Dict[str, Any]:
         """
@@ -504,7 +418,10 @@ class RAGEngine:
                 tool_name = action.get('tool')
                 params = action.get('params', {})
                 if tool_name:
-                    result = await self.execute_mcp_action(tool_name, params)
+                    result = await call_mcp(server_url=self.mcp_server_url, tool_call={"name": tool_name, "arguments": params})
+                    if result is None:
+                        logger.error(f"Failed to execute MCP tool: {tool_name} with params: {params}")
+                        return None
                     execution_results.append({
                         "tool": tool_name,
                         "params": params,
@@ -519,15 +436,36 @@ class RAGEngine:
             "execution_results": execution_results if execution_results else None
         }
     
-    def get_collection_stats(self) -> Dict[str, Any]:
+    async def batched_process_and_act(self, batch_data: list):
+        """
+        Process a batch of documents with the complete pipeline
+        
+        Args:
+            batch_data: List of dicts with 'content', 'metadata', and 'available_tools'
+        
+        Returns:
+            List of processing results
+        """
+        results = []
+        for item in batch_data:
+            content = item.get('content')
+            metadata = item.get('metadata')
+            available_tools = item.get('available_tools', "")
+            auto_execute = item.get('auto_execute', False)
+            
+            if content and metadata:
+                result = await self.process_and_act(content, metadata, available_tools, auto_execute)
+                results.append(result)
+        
+        return results
+    
+    async def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the ChromaDB collection"""
-        try:
-            count = self.collection.count()
-            return {
-                "collection_name": self.collection_name,
-                "total_documents": count,
-                "embedding_model": self.embedding_model.get_sentence_embedding_dimension()
-            }
-        except Exception as e:
-            logger.error(f"Error getting collection stats: {e}")
-            return {"error": str(e)}
+        count = await self.collection.count()
+        if not count:
+            return None
+        return {
+            "collection_name": self.collection_name,
+            "total_documents": count,
+            "embedding_model": self.embedding_model.get_embedding_dimension()
+        }

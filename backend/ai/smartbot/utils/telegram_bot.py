@@ -14,8 +14,6 @@ from init_app import cl_data_db, util_obj
 ws_url = f"wss://{os.getenv('SERVER_NAME')}/v1/api/core/bot/ws"
 token = os.getenv("TELEGRAM_BOT_TOKEN")
 
-
-
 async def send_to_quart(prompt: str, id: int, act: str) -> str:
     async with connect(ws_url) as ws:
         payload = json.dumps({"act": act, "prompt": prompt, "telegram_id": str(id)})

@@ -300,7 +300,10 @@ async def ingest_batch():
             {
                 "tool_type": "nmap",
                 "output": "...",
-                "metadata": {...}
+                "metadata": {
+                    "prb_id": "probe-01",
+                    "timestamp": "2026-02-05T12:00:00Z"
+                    }
             },
             ...
         ]
@@ -317,7 +320,8 @@ async def ingest_batch():
     for doc in documents:
         tool_type = doc.get('tool_type')
         output = doc.get('output')
-        metadata = doc.get('metadata', {})
+        metadata = doc.get('metadata')
+        prb_id = metadata.get('prb_id')
             
         if not tool_type or not output:
             continue
@@ -329,7 +333,7 @@ async def ingest_batch():
             
         parsed = await run_sync(lambda: parser.parse_tool_output(tool_type, output))()
             
-        doc_id = f"{tool_type}_{metadata.get('timestamp')}_{metadata.get('probe', 'default')}"
+        doc_id = f"prbtool:{prb_id}:{tool_type}:{metadata.get('timestamp')}:{str(uuid.uuid4())}"
             
         content = f"Tool: {tool_type}\n"
         content += f"Timestamp: {metadata.get('timestamp')}\n"
@@ -344,7 +348,10 @@ async def ingest_batch():
                     "tool_type": tool_type,
                     "timestamp": metadata.get('timestamp'),
                     "parsed": json.dumps(parsed),
-                    "has_anomalies": len(parsed.get('anomalies', [])) > 0
+                    "has_anomalies": len(parsed.get('anomalies', [])) > 0,
+                    "raw_output": output,
+                    "metadata": json.dumps(metadata),
+                    "content": content
                 }
             ) is None:
                 return jsonify(), 500

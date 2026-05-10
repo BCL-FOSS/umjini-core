@@ -73,7 +73,12 @@ NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD = load_network_diagnostic_prompt()
 
 logger.info(f"Network diagnostic system prompt loaded successfully.\n {NETWORK_DIAGNOSTIC_SYSTEM_PROMPT_MD[:500]}...")
 
-async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False):
+async def ip_blocker(conn_obj: Request | Websocket, auto_ban: bool = False, check_if_allowed: bool = False):
+    global auth_attempts
+    if check_if_allowed is True:
+        if await ip_ban_db.get_all_data(match=f"allowed_ip:{conn_obj.access_route[-1]}", cnfrm=True) is False:
+            logger.warning(f"IP {conn_obj.access_route[-1]} is not in allowed list, blocking access.")
+            return False
     if auto_ban is True:
         logger.info(f"Auto banning IP: {conn_obj.access_route[-1]}")
         await ip_ban_db.connect_db()
@@ -115,7 +120,7 @@ async def jwt_verification(request: Request | Websocket, type: str = 'usr', api_
                         await ip_blocker(conn_obj=request)
                         abort(401)
                 else:
-                    if bcrypt.verify(api_key,api_data_dict.get(api_name)) is False:
+                    if bcrypt.verify(api_key, api_data_dict.get(api_name)) is False:
                         await ip_blocker(conn_obj=request)
                         abort(401)
                 return api_data_dict
@@ -160,7 +165,8 @@ async def _receive_telegram_bot() -> None:
                     payload = {
                         "query": message['prompt'],
                         "n_results": 5,
-                        "filter": {"tool_type": "nmap"}
+                        "filter": {"tool_type": message['tool_filter'] if message['tool_filter'] else "all"},
+                        "prb_id": message['prb_id'] if message['prb_id'] else None
                     }
                     status, response = await util_obj.make_http_request(headers={'content-type': 'application/json'}, url=f"smartbot:8000/v1/query", data=payload, timeout=int(os.getenv('REQUEST_TIMEOUT')))
 
@@ -465,6 +471,8 @@ async def bot_ws():
 @app.websocket("/v1/api/core/channels/probe/heartbeat/<string:probe_id>")
 @rate_exempt
 async def heartbeat(probe_id):
+    global connected_probes
+    
     try:
         if probe_id is None or isinstance(probe_id, str) is False or probe_id.strip() == "":
             await ip_blocker(conn_obj=websocket, auto_ban=True)
@@ -538,36 +546,30 @@ async def heartbeat(probe_id):
 @app.websocket("/v1/api/core/channels/users/ws")
 @rate_exempt
 async def ws():
+    global auth_ping_counter    
     try:
         if websocket.cookies.get("access_token") is not None:
             id = None
             if websocket.args.get('id') is not None:
                 id = websocket.args.get('id')
             jwt_token = websocket.cookies.get("access_token")
-            client_connection = jwt_token
-            
-            if await ws_rate_limiter.check_rate_limit(client_id=client_connection) is False:
+            if await ws_rate_limiter.check_rate_limit(client_id=jwt_token) is False:
                 await ip_blocker(conn_obj=websocket)
                 abort(401)
-
             if id is not None:
-                await jwt_verification(sess_id=id, jwt_token=jwt_token, request=websocket, type='usr')
-                              
-            logger.info('websocket authentication successful')
+                await jwt_verification(sess_id=id, jwt_token=jwt_token, request=websocket, type='usr')           
+            logger.info(f'websocket authentication successful for session {id}')
             await websocket.accept()
-
             if id and (id not in auth_ping_counter):
                 now = datetime.now(tz=timezone.utc)
                 auth_ping_counter[id] = {
                     "sess_id": id,
-                    "sign_in_time ": now
+                    "sign_in_time": now
                 }
                 logger.debug(f"user session {id} -> signed in at {auth_ping_counter[id]['sign_in_time ']}") 
                 asyncio.ensure_future(_receive_user())
-
             if id and (id in auth_ping_counter):
                 asyncio.ensure_future(_receive_user())
-
             try:
                 async for message in broker.subscribe():
                     await websocket.send(message)
@@ -600,9 +602,8 @@ async def ws():
 @app.route('/v1/api/core/probe/init', methods=['GET'])
 async def prbinit():
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
-    usr = request.args.get('usr')
     try:
-        if not api_key or not usr:
+        if not api_key:
             await ip_blocker(conn_obj=request)
             abort(401)
         api_data_dict = await jwt_verification(request=request, type='prb', api_key=api_key)
@@ -625,123 +626,97 @@ async def prbinit():
     
 @app.route("/v1/api/core/probe/enroll", methods=['POST'])
 async def prbenroll():
-    logger.info(request.args)
-
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
-    usr = request.args.get('usr')
     site = request.args.get('site')
     jwt_token = request.cookies.get('access_token')
-
-    if not api_key or not usr or not jwt_token:
+    if not api_key or not jwt_token:
         await ip_blocker(conn_obj=request)
         abort(401)
-    
     if not site:
         site = 'default'
-
     await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
-
-    # Adopt new probe
     adopted_probe_data = await request.get_json()
-    logger.info(adopted_probe_data)
-        
     adopted_probe_data['db_id'] = f"prb:{adopted_probe_data['site']}:{str(uuid.uuid4())}:{adopted_probe_data['prb_id']}"
-    logger.info(adopted_probe_data)
-
     if await cl_data_db.upload_db_data(id=adopted_probe_data['db_id'], data=adopted_probe_data) > 0:
-        return jsonify({'status':'probe adopted'})
+        return jsonify(), 200
     else:
-        return jsonify({'status':'probe adoption failed'}), 400
+        return jsonify(), 400
     
 @app.route('/v1/api/core/probes/exec/<string:prb_id>/<string:tool>/<string:command>', methods=['POST'])
 @rate_exempt
 async def prbexec(prb_id, tool, command):
     api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
-    sess_id = request.args.get('amp;sess_id')
-    usr = request.args.get('usr')
     jwt_token = request.cookies.get('access_token')
-
-    if not usr or not jwt_token:
+    if not jwt_token:
         await ip_blocker(conn_obj=request)
         abort(401)
-
     if await ws_rate_limiter.check_rate_limit(client_id=jwt_token) is False:
         await ip_blocker(conn_obj=request)
         abort(401)
-
-    if api_key and not sess_id:
-        await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
-    else:
-        await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
-
+    await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
     data = await request.get_json()
-
     if not data['prb_id'] or await cl_data_db.get_all_data(match=f"*{prb_id}*", cnfrm=True) is False:
         await ip_blocker(conn_obj=request)
         abort(401)
-
     prb_data = await cl_data_db.get_all_data(match=f"*{prb_id}*")
-    logger.info(prb_data)
     prb_data_dict = next(iter(prb_data.values()))
-    logger.info(prb_data_dict)
-
     headers = {'content-type': 'application/json',
                    'x-api-key': prb_data_dict.get('prb_api_key')
                    }
-    
     url = f"{prb_data_dict.get('url')}/v1/api/{tool}/{command}"
-
     return jsonify(), 500 if await util_obj.make_http_request(headers=headers, url=url, data=data, timeout=int(os.getenv('REQUEST_TIMEOUT'))) is False else 200
     
 @app.route('/v1/api/core/probes/delete', methods=['POST'])
 async def prbdelete():
-    jwt_token = request.cookies.get("api_access_token")
-    usr = request.args.get('usr')
-
-    if not jwt_token or not usr:
+    jwt_token = request.cookies.get("access_token")
+    sess_id = request.args.get('sess_id')   
+    if not jwt_token or not sess_id:
         await ip_blocker(conn_obj=request)
         abort(401)
-
-    await jwt_verification(jwt_token=jwt_token, request=request, type='prb')
-
-    data = await request.get_json()
-    logger.info(data)
+    await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
+    data = await request.get_json() 
     id = data['id']
-    logger.info(id)
-
     result = await cl_data_db.del_obj(key=id)
-    logger.info(result)
-
     if result is None:
-        return jsonify('Probe deletion failed'), 400
+        return jsonify(), 400
+    return jsonify(), 200
 
-    return jsonify('Probe deleted'), 200
+@app.route('/v1/api/core/probes/ingest', methods=['GET', 'POST'])
+async def prbingest():
+    api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    jwt_token = request.cookies.get("access_token")
+    if not jwt_token:
+        await ip_blocker(conn_obj=request)
+        abort(401)
+    await jwt_verification(jwt_token=jwt_token, request=request, api_key=api_key, type='prb')
+    data = await request.get_json()
+    if data is None:
+        return jsonify(), 400
+    if await cl_data_db.upload_db_data(id=data['db_id'], data=data) > 0:
+        return jsonify(), 200
+    else:
+        return jsonify(), 400
 
 @app.route('/v1/api/core/user/alerts', methods=['POST'])
 async def alerts():
     jwt_token = request.cookies.get("access_token")
     sess_id = request.args.get('sess_id')   
-
     if not jwt_token or not sess_id:
         await ip_blocker(conn_obj=request)
         abort(401)
-    
-    await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request, type='usr')
-
+    await jwt_verification(sess_id=sess_id, jwt_token=jwt_token, request=request)
     data = await request.get_json()
-    logger.info(data)
-
     match data['action']:
         case 'ack':
             if await cl_data_db.upload_db_data(id=data['id'], data={'ack': 'seen'}) > 0:
-                return jsonify({'status':'alert acknowledged'}), 200
+                return jsonify(), 200
             else:
-                return jsonify({'status':'alert acknowledgment failed'}), 400
+                return jsonify(), 400
         case 'rslv':
             if await cl_data_db.upload_db_data(id=data['id'], data={'rslv': 'resolved'}) > 0:
-                return jsonify({'status':'alert resolved'}), 200
+                return jsonify(), 200
             else:
-                return jsonify({'status':'alert resolution failed'}), 400
+                return jsonify(), 400
 
 @app.errorhandler(Unauthorized)
 async def unauthorized():

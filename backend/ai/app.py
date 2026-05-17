@@ -235,7 +235,7 @@ async def ingest_tool_output():
         "tool_type": "nmap|tcpdump|traceroute|iperf|tshark|pcap",
         "output": "raw tool output",
         "metadata": {
-            "probe": "probe-01",
+            "prb_id": "probe-01",
             "target": "192.168.1.1",
             "timestamp": "2026-02-05T12:00:00Z"
         }
@@ -248,6 +248,7 @@ async def ingest_tool_output():
     tool_type = data.get('tool_type')
     output = data.get('output')
     metadata = data.get('metadata', {})
+    prb_id = metadata.get('prb_id')
         
     if not tool_type or not output:
         return jsonify(), 400
@@ -259,11 +260,11 @@ async def ingest_tool_output():
         
     parsed = await run_sync(lambda: parser.parse_tool_output(tool_type, output))()
         
-    doc_id = f"{tool_type}_{metadata.get('timestamp')}_{metadata.get('probe', 'default')}"
+    doc_id = f"prbtool:{prb_id}:{tool_type}:{metadata.get('timestamp')}:{str(uuid.uuid4())}"
         
     content = f"Tool: {tool_type}\n"
     content += f"Timestamp: {metadata.get('timestamp')}\n"
-    content += f"Probe: {metadata.get('probe', 'N/A')}\n"
+    content += f"Probe: {metadata.get('prb_id', 'N/A')}\n"
     content += f"Target: {metadata.get('target', 'N/A')}\n\n"
     content += f"Raw Output:\n{output}\n\n"
         

@@ -6,7 +6,7 @@ import nest_asyncio
 import logging
 from quart_rate_limiter import (RateLimiter, RateLimit, timedelta)
 import logging
-from ai.smartbot.utils.Util import Util
+from ai.utils.Util import Util
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('passlib').setLevel(logging.ERROR)

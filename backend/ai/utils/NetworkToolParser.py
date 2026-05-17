@@ -2,7 +2,7 @@ import re
 from typing import Dict, Any
 from datetime import datetime
 from datetime import datetime, timezone
-from smartbot.init_app import logger
+from init_app import logger
 from typing import Callable
 
 class NetworkToolParser:

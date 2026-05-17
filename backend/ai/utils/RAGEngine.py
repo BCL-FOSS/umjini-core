@@ -3,7 +3,7 @@ from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 import json
 from typing import List, Dict, Any, Optional
-from smartbot.init_app import call_mcp, logger, chat_with_ollama
+from init_app import call_mcp, logger, chat_with_ollama
 
 class RAGEngine:
     def __init__(

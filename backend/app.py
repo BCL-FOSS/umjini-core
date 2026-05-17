@@ -7,12 +7,12 @@ import json
 from init_app import app, logger
 from quart_rate_limiter import rate_exempt
 import os
-from ai.smartbot.utils.RedisDB import RedisDB
+from ai.utils.RedisDB import RedisDB
 from quart import (websocket, abort, jsonify)
 import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
 from utils.WSRateLimiter import WSRateLimiter
-from ai.smartbot.utils.Util import Util
+from ai.utils.Util import Util
 from quart import request, jsonify, request, Response
 from passlib.hash import bcrypt
 from quart_auth import Unauthorized

@@ -299,21 +299,6 @@ async def settings(cmp_id, obsc):
 
     return await render_template("app/settings.html", obsc_key=session.get('url_key'), cmp_id=cmp_id, user=user_data.get('unm'), ws_url=ws_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, data=user_data, telegram_form=telegram_form, api_form=api_form)
 
-@app.route('/smartbot', defaults={'cmp_id': url_cmp_id,'obsc': url_key}, methods=['GET', 'POST'])
-@app.route("/smartbot/<string:cmp_id>/<string:obsc>", methods=['GET', 'POST'])
-@user_login_required
-async def smartbot(cmp_id, obsc):
-    cur_usr_id = current_client.auth_id
-    session["csrf_ready"] = True
-    user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
-
-    probe_data = await cl_data_db.get_all_data(match=f"prb:*")
-
-    if probe_data is None:
-        probe_data = {"":""}
-
-    return await render_template("app/smartbot.html", obsc_key=session.get('url_key'), ws_url=ws_url, cmp_id=cmp_id, user=user_data.get('unm'), options=probe_data, mntr_url=mntr_url, cur_usr=user_data.get('unm'), cur_usr_id=cur_usr_id, data=user_data)
-
 @app.route('/floweditor', defaults={'cmp_id': 'bcl','obsc': url_key, 'flow_id': 'default', 'prb_id': 'default'}, methods=['GET', 'POST'])
 @app.route("/floweditor/<string:cmp_id>/<string:obsc>/<string:flow_id>/<string:prb_id>", methods=['GET', 'POST'])
 @user_login_required
@@ -397,10 +382,10 @@ async def chats(cmp_id, obsc, usr, prb_id):
     return await render_template("app/chats.html", obsc_key=session.get('url_key') ,
                                   cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, usr=usr, chats=chats)
 
-@app.route('/probedashboard', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default'}, methods=['GET', 'POST'])
-@app.route("/probedashboard/<string:cmp_id>/<string:obsc>/<string:prb_id>", methods=['GET', 'POST'])
+@app.route('/dashboard', defaults={'cmp_id': 'bcl','obsc': url_key, 'prb_id': 'default'}, methods=['GET', 'POST'])
+@app.route("/dashboard/<string:cmp_id>/<string:obsc>/<string:prb_id>", methods=['GET', 'POST'])
 @user_login_required
-async def probedashboard(cmp_id, obsc, prb_id):
+async def dashboard(cmp_id, obsc, prb_id):
     cur_usr_id = current_client.auth_id
     session["csrf_ready"] = True
     user_data, ws_url = await retrieve_user_sess_data(sess_id=cur_usr_id)
@@ -415,6 +400,11 @@ async def probedashboard(cmp_id, obsc, prb_id):
     win_count = 0
     android_count = 0
     iphone_count = 0
+
+    probe_data = await cl_data_db.get_all_data(match=f"prb:*")
+
+    if probe_data is None:
+        probe_data = {"":""}
 
     trace_results = await retrieve_task_results(prb_id, "trcrt")
     perf_results = await retrieve_task_results(prb_id, "test_clnt")
@@ -438,8 +428,8 @@ async def probedashboard(cmp_id, obsc, prb_id):
 
     ws_prb_url = f"wss://{mntr_url}/v1/api/core/channels/probe/heartbeat/{prb_id}?sess_id={cur_usr_id}"
 
-    return await render_template("app/probedashboard.html", obsc_key=session.get('url_key') ,
-                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, prb_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, alerts=alerts, devices=devices, ws_prb_url=ws_prb_url, tux_count=tux_count, win_count=win_count, android_count=android_count, iphone_count=iphone_count)
+    return await render_template("app/dashboard.html", obsc_key=session.get('url_key') ,
+                                  cmp_id=cmp_id, cur_usr_id=cur_usr_id, ws_url=ws_url, cur_usr=user_data.get('unm'), data=user_data, prb_id=prb_id, trace_results=trace_results, perf_results=perf_results, scan_results=scan_results, pcap_results=pcap_results, alerts=alerts, devices=devices, ws_prb_url=ws_prb_url, tux_count=tux_count, win_count=win_count, android_count=android_count, iphone_count=iphone_count, options=probe_data)
 
 @app.errorhandler(CSRFError)
 async def handle_csrf_error(e):

@@ -10,7 +10,7 @@ from quart.utils import run_sync
 @app.before_serving
 async def db_startup():
     await rag_engine.init_chroma_db()
-    await cl_data_db.connect()
+    await cl_data_db.connect_db()
 
 @app.route("/v1/chat", methods=["POST"])
 async def chat():

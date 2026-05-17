@@ -296,7 +296,7 @@ async def _receive_probe() -> None:
         action=message['act']
         if action:
             match action:
-                case 'heart_beat':
+                case 'hb':
                     logger.debug(f"Received probe {message['sess_id']} heartbeat: {message}")
                     global connected_probes
                     now = datetime.now(tz=timezone.utc)
@@ -310,7 +310,7 @@ async def _receive_probe() -> None:
                             logger.debug(f"Refreshed ping expiry for session {message['sess_id']} to {new_exp}")
                     else:
                         pass
-                case "task_cnfrm":  
+                case "tsk":  
                     logger.info(f"Received probe task confirmation message: {message}.")
                     match message.get('storage_opt'):
                         case 'new':
@@ -332,7 +332,7 @@ async def _receive_probe() -> None:
                     message['msg'] = f"Task '{message['job_type']}' was configured at probe '{message['prb_id']}' with output: {message['task_output']}"
 
                     await broker.publish(message=json.dumps(message))
-                case "smartbot":
+                case "smtbt":
                     if isinstance(message, list):
                         payload = {'documents': message}
                     else:
@@ -601,7 +601,7 @@ async def ws():
 
 @app.route('/v1/api/core/probe/init', methods=['GET'])
 async def prbinit():
-    api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    api_key = request.headers.get(os.getenv('API_KEY_HEADER_NAME'))
     try:
         if not api_key:
             await ip_blocker(conn_obj=request)
@@ -626,7 +626,7 @@ async def prbinit():
     
 @app.route("/v1/api/core/probe/enroll", methods=['POST'])
 async def prbenroll():
-    api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    api_key = request.headers.get(os.getenv('API_KEY_HEADER_NAME'))
     site = request.args.get('site')
     jwt_token = request.cookies.get('access_token')
     if not api_key or not jwt_token:
@@ -645,7 +645,7 @@ async def prbenroll():
 @app.route('/v1/api/core/probes/exec/<string:prb_id>/<string:tool>/<string:command>', methods=['POST'])
 @rate_exempt
 async def prbexec(prb_id, tool, command):
-    api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    api_key = request.headers.get(os.getenv('API_KEY_HEADER_NAME'))
     jwt_token = request.cookies.get('access_token')
     if not jwt_token:
         await ip_blocker(conn_obj=request)
@@ -683,7 +683,7 @@ async def prbdelete():
 
 @app.route('/v1/api/core/probes/ingest', methods=['GET', 'POST'])
 async def prbingest():
-    api_key = request.headers.get("X-UMJ-WFLW-API-KEY")
+    api_key = request.headers.get(os.getenv('API_KEY_HEADER_NAME'))
     jwt_token = request.cookies.get("access_token")
     if not jwt_token:
         await ip_blocker(conn_obj=request)
